@@ -15,6 +15,10 @@ var accessory := ""
 var gear: Array[String] = [] # อุปกรณ์สำรองที่มีแต่ยังไม่ได้สวม
 var towns: Array[Vector2i] = [] # เมืองที่ปลดปล่อยแล้ว
 
+# ตำแหน่งบนกระดาน (เก็บที่ผู้เล่นแต่ละคน เผื่อมีหลายผู้เล่นใน Phase 2)
+var tile: Vector2i = Board.CASTLE_TILE
+var came_from: Vector2i = Board.NO_TILE # ช่องก่อนหน้า กันเดินย้อนกลับ
+
 var _base := {}
 
 const SLOTS := ["weapon", "armor", "accessory"]
