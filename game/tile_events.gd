@@ -67,16 +67,76 @@ func land(player: PlayerStats) -> void:
 
 
 # ================================================================ ต่อสู้
-## คืนผล "win" / "lose" / "run"
+## ระบบต่อสู้ที่ใช้บนกระดาน
+##   "check"     = ช่องเช็ค (res://combat/)
+##   "dice_duel" = Dice Duel (res://dice_duel/ เก็บไว้ สลับกลับได้ที่นี่)
+const COMBAT_SYSTEM := "check"
+
+
+## ต่อสู้กับมอนสเตอร์ — คืนผล "win" / "lose" / "run"
 func fight(player: PlayerStats, monster_id: String) -> String:
-	var battle := Battle.new()
-	add_child(battle)
-	var result: String = await battle.start(player, monster_id)
-	battle.queue_free()
-	if result == "lose":
-		await _defeated(player)
+	if COMBAT_SYSTEM == "dice_duel":
+		return await _fight_dice_duel(player, monster_id)
+	var m: Dictionary = GameData.MONSTERS[monster_id]
+	var ui := CCBattleUI.new()
+	add_child(ui)
+	var final: Dictionary = await ui.start(CCBridge.config(player, monster_id, randi()), CCBridge.portraits(monster_id))
+	ui.queue_free()
+	CCBridge.apply_result(player, final)
+	var result: String = final.result
+	match result:
+		"win":
+			await _victory(player, m)
+		"lose":
+			await _defeated(player)
+		_:
+			await _dialogs.message("You got away from the %s." % monster_id)
 	_state.notify()
 	return result
+
+
+func _fight_dice_duel(player: PlayerStats, monster_id: String) -> String:
+	var m: Dictionary = GameData.MONSTERS[monster_id]
+	if player.items.has("Smoke Ball"):
+		var pick := await _dialogs.choose("A %s blocks your way!" % monster_id, ["Fight!", "Use Smoke Ball (escape)"])
+		if pick == 1:
+			player.items.erase("Smoke Ball")
+			_state.notify()
+			await _dialogs.message("You vanished in the smoke!")
+			return "run"
+
+	var ui := DDBattleUI.new()
+	add_child(ui)
+	var final: Dictionary = await ui.start(DDBoardBridge.config(player, monster_id, randi()), "ai",
+		m.get("dd_personality", "aggressive"), 1, DDBoardBridge.portraits(monster_id))
+	ui.queue_free()
+	player.hp = final.fighters[0].hp
+
+	var result := "run"
+	if final.winner == 0:
+		result = "win"
+		await _victory(player, m)
+	elif final.winner == 1:
+		result = "lose"
+		await _defeated(player)
+	else:
+		player.hp = maxi(1, player.hp)
+		await _dialogs.message("Neither side could win. The %s runs off." % monster_id)
+	_state.notify()
+	return result
+
+
+func _victory(player: PlayerStats, m: Dictionary) -> void:
+	var gold: int = m.gold
+	if player.job == "Rogue":
+		gold = roundi(gold * 1.25)
+	player.gold += gold
+	var ups := player.gain_exp(m.exp)
+	var text := "Victory! Got %d EXP and %d Gold." % [m.exp, gold]
+	if ups > 0:
+		text += "\nLEVEL UP! Now Lv %d." % player.level
+	_state.notify()
+	await _dialogs.message(text)
 
 
 ## แพ้: กลับปราสาท เสียเงิน 30% HP เหลือครึ่ง

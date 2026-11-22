@@ -24,31 +24,38 @@ const JOBS := {
 
 # ---------------------------------------------------------------- ไอเทม
 # type: "use" = ใช้แล้วหมดไป, "weapon"/"armor"/"accessory" = อุปกรณ์สวมใส่
+# battle (ไอเทมใช้แล้วหมด): ใช้ในการต่อสู้ได้ตอนไหน "attack" = เทิร์นบุก, "defense" = เทิร์นป้องกัน, "any" = ทั้งสอง
+#   ผลในการต่อสู้: heal / buff {สเตตัส: +ค่า} (ตลอดการต่อสู้นั้น) / damage (โดนแน่นอน) / poison {turns, damage} / escape
+# die_body / die_rune (ไม่ใส่ก็ได้): ใน Dice Duel เต๋าลูกของช่องนั้น (อาวุธ=ลูก 1, เกราะ=ลูก 2, เครื่องประดับ=ลูก 3) ได้ Body/Rune นี้
 const ITEMS := {
-	"Herb": {"type": "use", "price": 15, "heal": 20, "desc": "Heal 20 HP."},
-	"Big Herb": {"type": "use", "price": 40, "heal": 60, "desc": "Heal 60 HP."},
-	"Smoke Ball": {"type": "use", "price": 25, "escape": true, "desc": "Escape a battle for sure."},
+	"Herb": {"type": "use", "battle": "defense", "price": 15, "heal": 20, "desc": "Heal 20 HP. (Battle: defense turn)"},
+	"Big Herb": {"type": "use", "battle": "defense", "price": 40, "heal": 60, "desc": "Heal 60 HP. (Battle: defense turn)"},
+	"Power Tonic": {"type": "use", "battle": "defense", "price": 45, "buff": {"atk": 4, "mag": 4}, "desc": "ATK and MAG +4 for this battle. (Battle: defense turn)"},
+	"Iron Tonic": {"type": "use", "battle": "defense", "price": 40, "buff": {"def": 5}, "desc": "DEF +5 for this battle. (Battle: defense turn)"},
+	"Fire Bomb": {"type": "use", "battle": "attack", "price": 35, "damage": 12, "desc": "Deal 12 damage, never misses. (Battle: attack turn)"},
+	"Poison Dart": {"type": "use", "battle": "attack", "price": 30, "poison": {"turns": 3, "damage": 4}, "desc": "Poison: 4 damage for 3 turns. (Battle: attack turn)"},
+	"Smoke Ball": {"type": "use", "battle": "any", "price": 25, "escape": true, "desc": "Escape a battle for sure. (Battle: any turn)"},
 	# อาวุธ
 	"Oak Staff": {"type": "weapon", "price": 0, "atk": 1, "mag": 2, "desc": "A plain staff."},
 	"Moon Rod": {"type": "weapon", "price": 90, "atk": 2, "mag": 6, "desc": "A rod that glows under the moon."},
 	"Iron Blade": {"type": "weapon", "price": 110, "atk": 6, "desc": "A sturdy iron sword."},
-	"Hunter Bow": {"type": "weapon", "price": 150, "atk": 5, "spd": 3, "desc": "Light and quick."},
-	"Sun Staff": {"type": "weapon", "price": 220, "atk": 3, "mag": 10, "desc": "Burns with solar magic."},
-	"War Axe": {"type": "weapon", "price": 260, "atk": 11, "spd": -1, "desc": "Heavy, but hits like a cart."},
+	"Hunter Bow": {"type": "weapon", "price": 150, "atk": 5, "spd": 3, "die_body": "quick", "desc": "Light and quick. (Quick die)"},
+	"Sun Staff": {"type": "weapon", "price": 220, "atk": 3, "mag": 10, "die_rune": "spark", "desc": "Burns with solar magic. (Spark rune)"},
+	"War Axe": {"type": "weapon", "price": 260, "atk": 11, "spd": -1, "die_body": "heavy", "desc": "Heavy, but hits like a cart. (Heavy die)"},
 	# ชุดเกราะ
 	"Travel Cloak": {"type": "armor", "price": 0, "def": 1, "desc": "A worn cloak."},
 	"Leather Vest": {"type": "armor", "price": 70, "def": 4, "desc": "Simple leather protection."},
 	"Rune Robe": {"type": "armor", "price": 120, "def": 3, "mag": 3, "spd": 1, "desc": "Stitched with runes."},
 	"Chain Mail": {"type": "armor", "price": 180, "def": 8, "spd": -1, "desc": "Linked steel rings."},
-	"Knight Plate": {"type": "armor", "price": 300, "hp": 10, "def": 13, "spd": -2, "desc": "Full plate of a royal knight."},
+	"Knight Plate": {"type": "armor", "price": 300, "hp": 10, "def": 13, "spd": -2, "die_body": "heavy", "desc": "Full plate of a royal knight. (Heavy die)"},
 	# เครื่องประดับ
 	"Lucky Charm": {"type": "accessory", "price": 60, "spd": 3, "desc": "A four-leaf clover in glass."},
 	"Power Ring": {"type": "accessory", "price": 100, "atk": 3, "desc": "Makes your grip stronger."},
 	"Life Pendant": {"type": "accessory", "price": 120, "hp": 15, "desc": "Warm to the touch."},
-	"Sage Earring": {"type": "accessory", "price": 140, "mag": 4, "desc": "Whispers old spells."},
+	"Sage Earring": {"type": "accessory", "price": 140, "mag": 4, "die_rune": "twin", "desc": "Whispers old spells. (Twin rune)"},
 }
 
-const ITEM_SHOP_STOCK := ["Herb", "Big Herb", "Smoke Ball"] # ร้านไอเทม (ช่อง Shop)
+const ITEM_SHOP_STOCK := ["Herb", "Big Herb", "Power Tonic", "Iron Tonic", "Fire Bomb", "Poison Dart", "Smoke Ball"] # ร้านไอเทม (ช่อง Shop)
 # ร้านอาวุธ (บ้านข้างปราสาท / ช่อง Smithy) แยกตามหมวด
 const SMITHY_STOCK := {
 	"weapon": ["Moon Rod", "Iron Blade", "Hunter Bow", "Sun Staff", "War Axe"],
@@ -78,17 +85,22 @@ static func sell_price(item: String) -> int:
 
 # ---------------------------------------------------------------- มอนสเตอร์
 # sprite: ไฟล์สไปรต์ชีต (แถว 0 = หันหน้า, แถว 1 = หันซ้าย), frames = จำนวนเฟรมต่อแถว
-# moves: น้ำหนักการสุ่มท่า บุก(attack/strike/magic) และ รับ(guard/counter/ward)
+# cc_actions: ท่าของมอนสเตอร์ในระบบต่อสู้ช่องเช็ค {ท่า: น้ำหนักการสุ่ม} (ท่าดูใน CCBalance.ACTIONS, "guard" = ตั้งการ์ด)
+# cc_defense: วิธีป้องกันของมอนสเตอร์ตอนโดนโจมตี {block/dodge/counter: น้ำหนักการสุ่ม}
+# dd_job / dd_personality: อาชีพ (สกิล) และนิสัย AI ในระบบต่อสู้ Dice Duel (เก็บไว้ ยังไม่ได้ใช้)
+# offense/defense: น้ำหนักการสุ่มท่าของระบบต่อสู้เดิม (battle.gd) — Dice Duel ไม่ใช้แล้ว
 const MONSTERS := {
 	"Skeleton": {
 		"sprite": "res://monsters/skeleton.png", "frames": 8, "scale": 1.0, "tint": Color.WHITE,
 		"hp": 22, "atk": 8, "def": 4, "mag": 6, "spd": 5, "exp": 14, "gold": 22,
+		"dd_job": "ninja", "dd_personality": "bluffer", "cc_actions": {"attack": 3, "spell": 1}, "cc_defense": {"block": 2, "counter": 1},
 		"offense": {"attack": 5, "strike": 2, "magic": 3},
 		"defense": {"guard": 4, "counter": 2, "ward": 3},
 	},
 	"Goblin": {
 		"sprite": "res://monsters/goblin.png", "frames": 4, "scale": 1.0, "tint": Color.WHITE,
 		"hp": 28, "atk": 10, "def": 5, "mag": 1, "spd": 7, "exp": 16, "gold": 30,
+		"dd_job": "thief", "dd_personality": "bluffer", "cc_actions": {"attack": 1}, "cc_defense": {"block": 1, "dodge": 2},
 		"offense": {"attack": 6, "strike": 4, "magic": 0},
 		"defense": {"guard": 5, "counter": 3, "ward": 1},
 	},
@@ -96,12 +108,14 @@ const MONSTERS := {
 	"Goblin Chief": {
 		"sprite": "res://monsters/goblin.png", "frames": 4, "scale": 1.3, "tint": Color(1.0, 0.75, 0.6),
 		"hp": 60, "atk": 15, "def": 9, "mag": 2, "spd": 8, "exp": 60, "gold": 120,
+		"dd_job": "warrior", "dd_personality": "aggressive", "cc_actions": {"attack": 3, "heavy_blow": 1, "guard": 1}, "cc_defense": {"block": 2, "counter": 2},
 		"offense": {"attack": 5, "strike": 4, "magic": 0},
 		"defense": {"guard": 4, "counter": 4, "ward": 1},
 	},
 	"Bone Lord": {
 		"sprite": "res://monsters/skeleton.png", "frames": 8, "scale": 1.35, "tint": Color(0.8, 0.8, 1.15),
 		"hp": 55, "atk": 12, "def": 8, "mag": 14, "spd": 7, "exp": 70, "gold": 140,
+		"dd_job": "magician", "dd_personality": "aggressive", "cc_actions": {"attack": 2, "spell": 2, "fireball": 1}, "cc_defense": {"block": 2, "dodge": 1},
 		"offense": {"attack": 4, "strike": 2, "magic": 5},
 		"defense": {"guard": 3, "counter": 2, "ward": 5},
 	},
