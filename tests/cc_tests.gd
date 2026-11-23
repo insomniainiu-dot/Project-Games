@@ -22,6 +22,7 @@ func _init() -> void:
 	_crit()
 	_weapons_and_gems()
 	_uniques()
+	_tiers()
 	print("\nCheck combat tests: %d passed, %d failed" % [_passed, _failed])
 	quit(1 if _failed > 0 else 0)
 
@@ -553,6 +554,67 @@ func _uniques() -> void:
 			s = r.state
 			n += 1
 		check(ok and s.result != "", "AI fights legally with %s" % it)
+
+
+# ================================================================ Rare / Epic (ItemDB)
+func _tiers() -> void:
+	section("rare / epic gear")
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 11
+	eq(ItemDB.create("Iron Blade", "common", rng), "Iron Blade", "common = plain base name")
+	var ok_count := true
+	var ok_slots := true
+	var ok_unique := true
+	for i in 200:
+		var tier: String = ["rare", "epic"][i % 2]
+		var base: String = ["Iron Blade", "Chain Mail", "Lucky Charm"][i % 3]
+		var id := ItemDB.create(base, tier, rng)
+		var rec := ItemDB.record(id)
+		var r: Array = ItemDB.TIERS[tier].affixes
+		ok_count = ok_count and rec.affixes.size() >= r[0] and rec.affixes.size() <= r[1]
+		var seen := {}
+		for a in rec.affixes:
+			ok_slots = ok_slots and ItemDB.AFFIXES[a.id].slots.has(GameData.ITEMS[base].type)
+			ok_unique = ok_unique and not seen.has(a.id)
+			seen[a.id] = true
+	check(ok_count, "affix count follows the tier (rare 1-2, epic 3-4)")
+	check(ok_slots, "affixes only roll on slots they allow")
+	check(ok_unique, "no duplicate affix on one item")
+	# ค่ารวม
+	var id := ItemDB.register({"base": "Iron Blade", "tier": "epic", "affixes": [
+		{"id": "atk", "value": 3}, {"id": "attack_dmg", "value": 10}, {"id": "first_slot", "value": 8}]})
+	check(id.begins_with("Iron Blade#") and ItemDB.is_instance(id), "instance id = base#n")
+	var d := GameData.item(id)
+	eq(d.atk, GameData.ITEMS["Iron Blade"].atk + 3, "stat affix adds to the base stat")
+	check(is_equal_approx(d.mods.attack_mult, 1.1) and d.mods["first_slot_bonus.attack"] == 8, "mod affixes become battle mods")
+	eq(GameData.ITEMS["Iron Blade"].get("mods", {}), {}, "base item data is untouched")
+	eq(GameData.rarity(id), "epic", "rarity of an instance")
+	eq(GameData.display_name(id), "◆ Iron Blade (Epic)", "display name")
+	eq(GameData.weapon_type(id), "melee", "instance keeps its weapon type")
+	eq(GameData.sell_price(id), int(roundi(110 * 2.5) * GameData.SELL_RATE), "epic sells for more")
+	check(GameData.item_lines(id).contains("+ +3 ATK") and GameData.item_lines(id).contains("Attack damage +10%"), "affix text")
+	# PlayerStats + bridge
+	var p := PlayerStats.new()
+	var atk0 := p.stat("atk")
+	eq(p.preview_stat("atk", id), atk0 - 1 + 9, "preview a rolled weapon (Oak Staff ATK 1 -> 9)")
+	p.add_gear(id)
+	p.equip(id)
+	eq(p.weapon, id, "equip by instance id")
+	eq(p.stat("atk"), atk0 - 1 + 9, "rolled stats count")
+	var cfg := CCBridge.hero_config(p)
+	check(is_equal_approx(cfg.mods.attack_mult, 1.1) and cfg.attack_def.name == "Strike", "affix mods + weapon attack reach the battle")
+	eq(p.preview_remove_stat("atk", "weapon"), atk0 - 1, "preview removing it")
+	var id2 := ItemDB.register({"base": "Iron Blade", "tier": "rare", "affixes": [{"id": "atk", "value": 1}]})
+	p.add_gear(id2)
+	check(p.owns(id) and p.owns(id2) and id != id2, "two rolled copies of the same base are separate items")
+	# ดรอป
+	var drops := {}
+	for i in 400:
+		drops[GameData.rarity(ItemDB.random_drop(rng))] = drops.get(GameData.rarity(ItemDB.random_drop(rng)), 0) + 1
+	check(drops.keys().all(func(k): return k == "rare" or k == "epic") and drops.get("rare", 0) > drops.get("epic", 0), "drops are rare/epic, rare more often (%s)" % str(drops))
+	# Dice Duel ยังอ่านอุปกรณ์ได้
+	var c := DDBoardBridge.player_character(p)
+	check(c.dice.size() > 0, "Dice Duel bridge reads rolled gear")
 
 
 # ================================================================ Passive mods (T-062)

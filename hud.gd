@@ -35,12 +35,13 @@ func refresh(p: PlayerStats, day: int) -> void:
 	_hp_bar.max_value = p.max_hp()
 	_hp_bar.value = p.hp
 	var pts := p.unspent_points()
-	_text.text = ("Passive points: %d  (click Passive)\n" % pts if pts > 0 else "") + "%s  [%s Lv %d]\nHP %d / %d    EXP %d / %d\nATK %d  ARM %d  TEC %d  SPD %d\nGold %d    Day %d    Towns %d/%d\nWeapon: %s\nArmor: %s\nAccessory: %s\nItems: %s" % [
+	_text.text = ("Passive points: %d  (click Passive)\n" % pts if pts > 0 else "") + "%s  [%s Lv %d]\nHP %d / %d    EXP %d / %d\nATK %d  ARM %d  TEC %d  SPD %d\nGold %d    Day %d    Towns %d/%d\nWeapon: %s\nArmor: %s\nAccessory: %s\nGems: %s\nItems: %s" % [
 		p.name, p.job, p.level,
 		p.hp, p.max_hp(), p.xp, p.exp_needed(),
 		p.stat("atk"), p.stat("def"), p.stat("mag"), p.stat("spd"),
 		p.gold, day, p.towns.size(), GameData.TOWNS.size(),
-		_or_dash(p.weapon), _or_dash(p.armor), _or_dash(p.accessory),
+		_or_dash(GameData.display_name(p.weapon)), _or_dash(GameData.display_name(p.armor)), _or_dash(GameData.display_name(p.accessory)),
+		", ".join(PackedStringArray(p.gems.map(func(g): return GameData.gem_name(g)))) if not p.gems.is_empty() else "-",
 		", ".join(PackedStringArray(p.items)) if not p.items.is_empty() else "-",
 	]
 

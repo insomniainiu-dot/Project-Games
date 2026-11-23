@@ -13,7 +13,7 @@ static func player_character(p: PlayerStats) -> Dictionary:
 	for i in mini(slots.size(), c.dice.size()):
 		if slots[i] == "":
 			continue
-		var item: Dictionary = GameData.ITEMS[slots[i]]
+		var item: Dictionary = GameData.item(slots[i])
 		if item.has("die_body"):
 			c.dice[i] = DDBattle.create_die(c.dice[i].id, item.die_body)
 		if item.has("die_rune"):

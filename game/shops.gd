@@ -142,14 +142,15 @@ func _smithy_sell(player: PlayerStats) -> void:
 			return
 		var labels: Array = []
 		for it in player.gear:
-			labels.append("%s  -> %dG   %s" % [it, GameData.sell_price(it), GameData.stat_text(it)])
+			labels.append("%s  -> %dG   %s" % [GameData.display_name(it), GameData.sell_price(it), GameData.stat_text(it)])
 		labels.append("Back")
 		var pick := await _dialogs.choose("Sell which gear? (I pay half price)  Gold %d" % player.gold, labels)
 		if pick >= player.gear.size():
 			return
 		var item: String = player.gear[pick]
 		var value := GameData.sell_price(item)
-		var confirm := await _dialogs.choose("Sell %s for %dG?" % [item, value], ["Sell", "Cancel"])
+		var lines := GameData.item_lines(item)
+		var confirm := await _dialogs.choose("Sell %s for %dG?%s" % [GameData.display_name(item), value, "\n" + lines if lines != "" else ""], ["Sell", "Cancel"])
 		if confirm != 0:
 			continue
 		player.gear.remove_at(pick)

@@ -11,7 +11,6 @@ const STAT_NAMES := {"hp": "Max HP", "atk": "ATK", "def": "ARM", "mag": "TEC", "
 const COLOR_UP := Color(0.5, 1.0, 0.55)
 const COLOR_DOWN := Color(1.0, 0.5, 0.5)
 const COLOR_GOLD := Color(0.95, 0.8, 0.45)
-const COLOR_UNIQUE := Color(1.0, 0.6, 0.25) # สีส้มของ Unique
 const DEFAULT_INFO := "Hover or select gear to compare. Click to equip. (Esc = close)"
 
 var player: PlayerStats
@@ -53,7 +52,7 @@ func _unhandled_input(event: InputEvent) -> void:
 func _equip(item: String) -> void:
 	var old := player.equip(item)
 	_refresh()
-	_info.text = "Equipped %s." % item + (" (%s went to your gear bag)" % old if old != "" else "")
+	_info.text = "Equipped %s." % GameData.display_name(item) + (" (%s went to your gear bag)" % GameData.display_name(old) if old != "" else "")
 
 
 func _unequip(slot: String) -> void:
@@ -62,7 +61,7 @@ func _unequip(slot: String) -> void:
 		return
 	if player.unequip(slot):
 		_refresh()
-		_info.text = "Removed %s." % cur
+		_info.text = "Removed %s." % GameData.display_name(cur)
 	else:
 		_info.text = "Your gear bag is full! (%d/%d)" % [player.gear.size(), GameData.MAX_GEAR]
 
@@ -100,8 +99,8 @@ func _refresh() -> void:
 		else:
 			var extra := GameData.weapon_attack_text(it)
 			b.text = "%s:  %s\n    %s%s" % [GameData.SLOT_NAMES[slot], GameData.display_name(it), GameData.stat_text(it), "   " + extra if extra != "" else ""]
-		if GameData.rarity(it) == "unique":
-			b.add_theme_color_override("font_color", COLOR_UNIQUE)
+		if GameData.rarity(it) != "common":
+			b.add_theme_color_override("font_color", ItemDB.color(it))
 		else:
 			b.remove_theme_color_override("font_color")
 	for i in CCBalance.GEM_SLOTS:
@@ -120,9 +119,9 @@ func _refresh() -> void:
 		_gear_list.add_child(empty)
 	for it in player.gear:
 		var b := Button.new()
-		b.text = "%s   [%s]   %s" % [GameData.display_name(it), GameData.SLOT_NAMES[GameData.ITEMS[it].type], GameData.stat_text(it)]
-		if GameData.rarity(it) == "unique":
-			b.add_theme_color_override("font_color", COLOR_UNIQUE)
+		b.text = "%s   [%s]   %s" % [GameData.display_name(it), GameData.SLOT_NAMES[GameData.item(it).type], GameData.stat_text(it)]
+		if GameData.rarity(it) != "common":
+			b.add_theme_color_override("font_color", ItemDB.color(it))
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		b.custom_minimum_size = Vector2(0, 42)
 		b.add_theme_font_size_override("font_size", 18)
@@ -171,13 +170,13 @@ func _preview_equip(item: String) -> void:
 	for k in GameData.STAT_KEYS:
 		vals[k] = player.preview_stat(k, item)
 	_show_stats(vals)
-	var data: Dictionary = GameData.ITEMS[item]
+	var data := GameData.item(item)
 	var cur := player.equipped(data.type)
 	var atk := GameData.weapon_attack_text(item)
-	var uq := GameData.unique_text(item)
+	var uq := GameData.item_lines(item)
 	_info.text = "%s  [%s]  %s - %s%s\n%s%s" % [
 		GameData.display_name(item), GameData.SLOT_NAMES[data.type], GameData.stat_text(item), data.desc, "  " + atk if atk != "" else "",
-		uq + "\n" if uq != "" else "", "Replaces: %s" % cur if cur != "" else "Slot is empty.",
+		uq + "\n" if uq != "" else "", "Replaces: %s" % GameData.display_name(cur) if cur != "" else "Slot is empty.",
 	]
 
 
@@ -189,10 +188,10 @@ func _preview_remove(slot: String) -> void:
 		return
 	var vals := {}
 	for k in GameData.STAT_KEYS:
-		vals[k] = player.stat(k) - int(GameData.ITEMS[cur].get(k, 0))
+		vals[k] = player.preview_remove_stat(k, slot)
 	_show_stats(vals)
-	var uq := GameData.unique_text(cur)
-	_info.text = "%s - %s\n%sClick to remove it (goes to your gear bag)." % [GameData.display_name(cur), GameData.ITEMS[cur].desc, uq + "\n" if uq != "" else ""]
+	var uq := GameData.item_lines(cur)
+	_info.text = "%s - %s\n%sClick to remove it (goes to your gear bag)." % [GameData.display_name(cur), GameData.item(cur).desc, uq + "\n" if uq != "" else ""]
 
 
 func _preview_none() -> void:

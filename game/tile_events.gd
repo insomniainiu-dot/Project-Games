@@ -135,7 +135,18 @@ func _victory(player: PlayerStats, m: Dictionary) -> void:
 		text += "\n+%d Passive Point%s! Press Passive to spend." % [ups, "" if ups == 1 else "s"]
 	_state.notify()
 	await _dialogs.message(text)
+	await _gear_drop(player, m)
 	await _unique_drop(player, m)
+
+
+## ดรอปอุปกรณ์ Rare/Epic (ผู้คุมเมืองดรอปแน่นอน, มอนสเตอร์ทั่วไปตาม ItemDB.GEAR_DROP_CHANCE)
+func _gear_drop(player: PlayerStats, m: Dictionary) -> void:
+	if randf() >= float(m.get("gear_chance", ItemDB.GEAR_DROP_CHANCE)):
+		return
+	var rng := RandomNumberGenerator.new()
+	rng.randomize()
+	var item := ItemDB.random_drop(rng)
+	await _offer_gear(player, item, "%s DROP!" % ItemDB.TIERS[GameData.rarity(item)].name.to_upper())
 
 
 ## ดรอปอาวุธ Unique ที่ยังไม่มี (ผู้คุมเมืองดรอปแน่นอน, มอนสเตอร์ทั่วไปตาม UNIQUE_DROP_CHANCE)
@@ -145,8 +156,16 @@ func _unique_drop(player: PlayerStats, m: Dictionary) -> void:
 	var pool: Array = GameData.unique_items().filter(func(it): return not player.owns(it))
 	if pool.is_empty():
 		return
-	var item: String = pool[randi() % pool.size()]
-	var info := "UNIQUE DROP!  %s\n%s\n%s" % [GameData.display_name(item), GameData.weapon_attack_text(item), GameData.unique_text(item)]
+	await _offer_gear(player, pool[randi() % pool.size()], "UNIQUE DROP!")
+
+
+## เก็บอุปกรณ์ที่ดรอปเข้ากระเป๋า แล้วถามว่าจะสวมเลยไหม (กระเป๋าเต็ม = ทิ้ง)
+func _offer_gear(player: PlayerStats, item: String, header: String) -> void:
+	var parts := PackedStringArray(["%s  %s" % [header, GameData.display_name(item)], GameData.stat_text(item)])
+	for extra in [GameData.weapon_attack_text(item), GameData.item_lines(item)]:
+		if extra != "":
+			parts.append(extra)
+	var info := "\n".join(parts)
 	if not player.add_gear(item):
 		await _dialogs.message(info + "\n\nYour gear bag is full... you had to leave it behind.")
 		return

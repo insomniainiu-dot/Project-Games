@@ -50,7 +50,7 @@ func stat_with(key: String, nodes: Array) -> int:
 	var v: int = _base.get(key, 0)
 	for e in [weapon, armor, accessory]:
 		if e != "":
-			v += GameData.ITEMS[e].get(key, 0)
+			v += GameData.item(e).get(key, 0)
 	v += PassiveTree.stat_bonus(nodes, key)
 	var pct: int = PassiveTree.mods(nodes).get("stat_pct." + key, 0) # Keystone เช่น Glass Mind (TEC +30%, HP -25%)
 	pct += int(gear_mods().get("stat_pct." + key, 0)) # Unique เช่น Siphon Edge (HP -15%)
@@ -64,12 +64,12 @@ func passive_mods() -> Dictionary:
 	return PassiveTree.mods(allocated())
 
 
-## ผลพิเศษจากอุปกรณ์ที่สวม (อาวุธ Unique)
+## ผลพิเศษจากอุปกรณ์ที่สวม (Unique + affix ของ Rare/Epic)
 func gear_mods() -> Dictionary:
 	var out := {}
 	for e in [weapon, armor, accessory]:
 		if e != "":
-			out = CCBalance.merge_mods(out, GameData.ITEMS[e].get("mods", {}))
+			out = CCBalance.merge_mods(out, GameData.item(e).get("mods", {}))
 	return out
 
 
@@ -82,8 +82,8 @@ func battle_mods() -> Dictionary:
 func granted_skills() -> Array:
 	var out := []
 	for e in [weapon, armor, accessory]:
-		if e != "" and GameData.ITEMS[e].has("grants"):
-			out.append(GameData.ITEMS[e].grants)
+		if e != "" and GameData.item(e).has("grants"):
+			out.append(GameData.item(e).grants)
 	return out
 
 
@@ -274,9 +274,18 @@ func _set_slot(slot: String, item: String) -> void:
 
 ## ค่าพลังถ้าสวม item แทนของเดิมในช่องเดียวกัน (ใช้เทียบก่อนสวม)
 func preview_stat(key: String, item: String) -> int:
-	var slot: String = GameData.ITEMS[item].type
+	var slot: String = GameData.item(item).type
 	var cur := equipped(slot)
-	_set_slot(slot, item) # สวมชั่วคราว (คิด % จาก Unique ถูกต้อง) แล้วคืนของเดิม
+	_set_slot(slot, item) # สวมชั่วคราว (คิด % จาก Unique / affix ถูกต้อง) แล้วคืนของเดิม
+	var v := stat(key)
+	_set_slot(slot, cur)
+	return v
+
+
+## ค่าพลังถ้าถอดของในช่อง slot ออก
+func preview_remove_stat(key: String, slot: String) -> int:
+	var cur := equipped(slot)
+	_set_slot(slot, "")
 	var v := stat(key)
 	_set_slot(slot, cur)
 	return v
@@ -295,7 +304,7 @@ func add_gear(item: String) -> bool:
 
 ## สวมอุปกรณ์ (ถ้าอยู่ในกระเป๋าอุปกรณ์จะถูกหยิบออก) ของเดิมกลับเข้ากระเป๋า คืนชื่อของเดิม
 func equip(item: String) -> String:
-	var slot: String = GameData.ITEMS[item].type
+	var slot: String = GameData.item(item).type
 	var old := equipped(slot)
 	gear.erase(item)
 	_set_slot(slot, item)
