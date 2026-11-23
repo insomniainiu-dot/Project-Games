@@ -64,11 +64,44 @@ func _smithy_buy(player: PlayerStats) -> void:
 		var cat_labels: Array = []
 		for c in cats:
 			cat_labels.append(CATEGORY_NAMES[c])
+		cat_labels.append("Skill Gems")
 		cat_labels.append("Back")
 		var c_pick := await _dialogs.choose("What are you looking for? (Gold %d)" % player.gold, cat_labels)
-		if c_pick >= cats.size():
+		if c_pick == cats.size():
+			await _smithy_buy_gems(player)
+			continue
+		if c_pick > cats.size():
 			return
 		await _smithy_buy_list(player, cats[c_pick])
+
+
+## Skill Gem: ท่าที่ถอดเปลี่ยนได้ 2 ช่อง (ซื้อแล้วถ้ามีช่องว่างจะใส่ให้เลย ไม่งั้นเข้ากระเป๋า gem)
+func _smithy_buy_gems(player: PlayerStats) -> void:
+	var stock: Array = CCBalance.GEMS.keys().filter(func(g): return CCBalance.GEMS[g].price > 0)
+	while true:
+		var labels: Array = []
+		for g in stock:
+			labels.append("%s  %dG%s" % [GameData.gem_name(g), CCBalance.GEMS[g].price, "   (owned)" if player.owns_gem(g) else ""])
+		labels.append("Back")
+		var pick := await _dialogs.choose("Skill Gems - Gold %d\nGems are moves you can swap in the Equip window (2 slots)." % player.gold, labels)
+		if pick >= stock.size():
+			return
+		var gem: String = stock[pick]
+		var price: int = CCBalance.GEMS[gem].price
+		if player.owns_gem(gem):
+			await _dialogs.message("You already have %s." % GameData.gem_name(gem))
+			continue
+		if player.gold < price:
+			await _dialogs.message("Not enough Gold! (%s costs %dG, you have %dG)" % [GameData.gem_name(gem), price, player.gold])
+			continue
+		var confirm := await _dialogs.choose("Buy %s for %dG?\n%s" % [GameData.gem_name(gem), price, CCBalance.GEMS[gem].desc], ["Buy", "Cancel"])
+		if confirm != 0:
+			continue
+		player.gold -= price
+		player.add_gem(gem)
+		_state.notify()
+		await _dialogs.message("You got %s! %s" % [GameData.gem_name(gem),
+			"It's socketed." if player.gems.has(gem) else "It's in your gem bag - swap it in at Equip."])
 
 
 func _smithy_buy_list(player: PlayerStats, cat: String) -> void:

@@ -11,11 +11,13 @@ const STAT_NAMES := {"hp": "Max HP", "atk": "ATK", "def": "ARM", "mag": "TEC", "
 const COLOR_UP := Color(0.5, 1.0, 0.55)
 const COLOR_DOWN := Color(1.0, 0.5, 0.5)
 const COLOR_GOLD := Color(0.95, 0.8, 0.45)
+const COLOR_UNIQUE := Color(1.0, 0.6, 0.25) # สีส้มของ Unique
 const DEFAULT_INFO := "Hover or select gear to compare. Click to equip. (Esc = close)"
 
 var player: PlayerStats
 var _title: Label
 var _slot_buttons := {} # slot -> Button
+var _gem_buttons: Array = [] # ช่อง Skill Gem (index = ช่อง)
 var _stat_labels := {} # stat key -> Label
 var _gear_title: Label
 var _gear_list: VBoxContainer
@@ -65,6 +67,28 @@ func _unequip(slot: String) -> void:
 		_info.text = "Your gear bag is full! (%d/%d)" % [player.gear.size(), GameData.MAX_GEAR]
 
 
+func _equip_gem(gem: String) -> void:
+	if player.gems.size() >= CCBalance.GEM_SLOTS:
+		_info.text = "Both gem slots are full. Click a gem slot on the left to remove one first."
+		return
+	player.set_gem(player.gems.size(), gem)
+	_refresh()
+	_info.text = "Socketed %s." % GameData.gem_name(gem)
+
+
+func _remove_gem(slot: int) -> void:
+	var old := player.remove_gem(slot)
+	if old == "":
+		return
+	_refresh()
+	_info.text = "Removed %s (back in your gem bag)." % GameData.gem_name(old)
+
+
+func _preview_gem(gem: String) -> void:
+	_show_stats({})
+	_info.text = "[Skill Gem] %s" % CCBalance.GEMS[gem].desc
+
+
 # ================================================================ แสดงผล
 func _refresh() -> void:
 	_title.text = "Equipment  -  %s  [%s Lv %d]   HP %d/%d" % [player.name, player.job, player.level, player.hp, player.max_hp()]
@@ -74,13 +98,21 @@ func _refresh() -> void:
 		if it == "":
 			b.text = "%s:  -  (empty)" % GameData.SLOT_NAMES[slot]
 		else:
-			b.text = "%s:  %s\n    %s" % [GameData.SLOT_NAMES[slot], it, GameData.stat_text(it)]
+			var extra := GameData.weapon_attack_text(it)
+			b.text = "%s:  %s\n    %s%s" % [GameData.SLOT_NAMES[slot], GameData.display_name(it), GameData.stat_text(it), "   " + extra if extra != "" else ""]
+		if GameData.rarity(it) == "unique":
+			b.add_theme_color_override("font_color", COLOR_UNIQUE)
+		else:
+			b.remove_theme_color_override("font_color")
+	for i in CCBalance.GEM_SLOTS:
+		var gb: Button = _gem_buttons[i]
+		gb.text = "Gem %d:  %s" % [i + 1, GameData.gem_name(player.gems[i]) if i < player.gems.size() else "-  (empty)"]
 
 	_gear_title.text = "Gear bag  (%d/%d)  -  click to equip" % [player.gear.size(), GameData.MAX_GEAR]
 	for c in _gear_list.get_children():
 		_gear_list.remove_child(c)
 		c.queue_free()
-	if player.gear.is_empty():
+	if player.gear.is_empty() and player.gem_bag.is_empty():
 		var empty := Label.new()
 		empty.text = "(empty)\nBuy weapons and armor at the Smithy\n- the house left of the castle."
 		empty.add_theme_font_size_override("font_size", 18)
@@ -88,13 +120,25 @@ func _refresh() -> void:
 		_gear_list.add_child(empty)
 	for it in player.gear:
 		var b := Button.new()
-		b.text = "%s   [%s]   %s" % [it, GameData.SLOT_NAMES[GameData.ITEMS[it].type], GameData.stat_text(it)]
+		b.text = "%s   [%s]   %s" % [GameData.display_name(it), GameData.SLOT_NAMES[GameData.ITEMS[it].type], GameData.stat_text(it)]
+		if GameData.rarity(it) == "unique":
+			b.add_theme_color_override("font_color", COLOR_UNIQUE)
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		b.custom_minimum_size = Vector2(0, 42)
 		b.add_theme_font_size_override("font_size", 18)
 		b.pressed.connect(_equip.bind(it), CONNECT_DEFERRED) # deferred: ปุ่มนี้จะถูกลบตอนรีเฟรช
 		b.mouse_entered.connect(_preview_equip.bind(it))
 		b.focus_entered.connect(_preview_equip.bind(it))
+		_gear_list.add_child(b)
+	for gem in player.gem_bag:
+		var b := Button.new()
+		b.text = "%s   [Skill Gem]" % GameData.gem_name(gem)
+		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		b.custom_minimum_size = Vector2(0, 42)
+		b.add_theme_font_size_override("font_size", 18)
+		b.pressed.connect(_equip_gem.bind(gem), CONNECT_DEFERRED)
+		b.mouse_entered.connect(_preview_gem.bind(gem))
+		b.focus_entered.connect(_preview_gem.bind(gem))
 		_gear_list.add_child(b)
 
 	_show_stats({})
@@ -129,9 +173,11 @@ func _preview_equip(item: String) -> void:
 	_show_stats(vals)
 	var data: Dictionary = GameData.ITEMS[item]
 	var cur := player.equipped(data.type)
-	_info.text = "%s  [%s]  %s - %s\n%s" % [
-		item, GameData.SLOT_NAMES[data.type], GameData.stat_text(item), data.desc,
-		"Replaces: %s" % cur if cur != "" else "Slot is empty.",
+	var atk := GameData.weapon_attack_text(item)
+	var uq := GameData.unique_text(item)
+	_info.text = "%s  [%s]  %s - %s%s\n%s%s" % [
+		GameData.display_name(item), GameData.SLOT_NAMES[data.type], GameData.stat_text(item), data.desc, "  " + atk if atk != "" else "",
+		uq + "\n" if uq != "" else "", "Replaces: %s" % cur if cur != "" else "Slot is empty.",
 	]
 
 
@@ -145,7 +191,8 @@ func _preview_remove(slot: String) -> void:
 	for k in GameData.STAT_KEYS:
 		vals[k] = player.stat(k) - int(GameData.ITEMS[cur].get(k, 0))
 	_show_stats(vals)
-	_info.text = "%s - %s\nClick to remove it (goes to your gear bag)." % [cur, GameData.ITEMS[cur].desc]
+	var uq := GameData.unique_text(cur)
+	_info.text = "%s - %s\n%sClick to remove it (goes to your gear bag)." % [GameData.display_name(cur), GameData.ITEMS[cur].desc, uq + "\n" if uq != "" else ""]
 
 
 func _preview_none() -> void:
@@ -203,6 +250,18 @@ func _build() -> void:
 		b.focus_entered.connect(_preview_remove.bind(slot))
 		left.add_child(b)
 		_slot_buttons[slot] = b
+	left.add_child(_section("Skill Gems  (click to remove)"))
+	for i in CCBalance.GEM_SLOTS:
+		var gb := Button.new()
+		gb.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		gb.custom_minimum_size = Vector2(0, 36)
+		gb.add_theme_font_size_override("font_size", 17)
+		gb.pressed.connect(_remove_gem.bind(i), CONNECT_DEFERRED)
+		gb.mouse_entered.connect(func() -> void:
+			if i < player.gems.size():
+				_preview_gem(player.gems[i]))
+		left.add_child(gb)
+		_gem_buttons.append(gb)
 	left.add_child(_section("Stats"))
 	var grid := GridContainer.new()
 	grid.columns = 2

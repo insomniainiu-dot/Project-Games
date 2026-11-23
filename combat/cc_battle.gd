@@ -7,11 +7,13 @@ class_name CCBattle
 ##
 ## config = {
 ##   "seed": int,
-##   "hero": {"name", "job", "stats": {hp, atk, def, mag, spd, lck (ไม่ใส่ = 0)}, "hp": HP ปัจจุบัน, "items": [...]},
+##   "hero": {"name", "job", "stats": {hp, atk, def, mag, spd, lck (ไม่ใส่ = 0)}, "hp": HP ปัจจุบัน, "items": [...],
+##            "attack_def": ท่า Attack จากอาวุธ (CCBalance.weapon_attack, ไม่ใส่ = ACTIONS.attack),
+##            "gems": [Skill Gem สูงสุด 2] (ไม่ใส่ = CCBalance.default_gems(job))},
 ##   "monster": {"name", "stats", "actions": {ท่า: น้ำหนัก}, "defense": {วิธีป้องกัน: น้ำหนัก}, "gold"},
 ## }
 ## Action ของผู้เล่น:
-##   ตาบุก     : {"type": "skill", "skill": "attack"/"spell"/สกิลอาชีพ, "focus": n}
+##   ตาบุก     : {"type": "skill", "skill": "attack"/gem ที่ใส่ไว้, "focus": n}
 ##               {"type": "guard"} / {"type": "item", "item": ไอเทมโจมตี} / {"type": "flee", "focus": n}
 ##   ตาป้องกัน : {"type": "defend", "defense": "block"/"dodge"/"counter", "focus": n}
 ##               {"type": "item", "item": ไอเทมฮีล/เสริมพลัง} (สละการป้องกัน) / {"type": "flee", "focus": n} (พลาด = รับเต็ม ๆ)
@@ -36,9 +38,16 @@ static func mod(unit: Dictionary, key: String, default = 0):
 	return unit.get("mods", {}).get(key, default)
 
 
+## ข้อมูลท่าของ unit นี้: Attack มาจากอาวุธที่ถือ (unit.attack_def) ท่าอื่นมาจาก CCBalance.ACTIONS
+static func action_def(unit: Dictionary, skill: String) -> Dictionary:
+	if skill == "attack" and not unit.get("attack_def", {}).is_empty():
+		return unit.attack_def
+	return CCBalance.ACTIONS[skill]
+
+
 ## จำนวนช่องของท่า (Ambush: ตาแรกของการต่อสู้ Attack +1 ช่อง)
 static func slots_for(s: Dictionary, who: int, skill: String) -> int:
-	var n: int = CCBalance.ACTIONS[skill].slots
+	var n: int = action_def(s.units[who], skill).slots
 	if skill == "attack" and s.get("round", 0) == 1:
 		n += int(mod(s.units[who], "first_turn_attack_slots"))
 	return n
@@ -46,22 +55,33 @@ static func slots_for(s: Dictionary, who: int, skill: String) -> int:
 
 ## โอกาสผ่านต่อช่องของท่า (รวม Neural Link: มีโดรนอยู่ เช็ค TEC +5%)
 static func action_chance(unit: Dictionary, skill: String, focus := 0) -> float:
-	var d: Dictionary = CCBalance.ACTIONS[skill]
+	var d := action_def(unit, skill)
 	var bonus := 0.0
 	if d.check == "mag" and unit.get("drone", 0) > 0:
 		bonus += float(mod(unit, "drone_check_bonus"))
 	return chance(unit.stats[d.check], focus, bonus)
 
 
+## ท่าที่ใช้ได้ = Attack (จากอาวุธ) + Skill Gem ที่ใส่ไว้ (ไม่ระบุ gems = gem เริ่มต้นของอาชีพ)
 static func skills_for(unit: Dictionary) -> Array:
-	var out := ["attack", "spell"]
-	if CCBalance.JOB_SKILL.has(unit.get("job", "")):
-		out.append(CCBalance.JOB_SKILL[unit.job])
+	var out: Array = ["attack"] + unit.get("gems", CCBalance.default_gems(unit.get("job", "")))
+	for g in unit.get("granted", []): # ท่าติดอาวุธ Unique
+		if not out.has(g):
+			out.append(g)
+	return out
+
+
+## กรอง gem ให้ถูกต้อง: ต้องมีใน GEMS, ไม่ซ้ำ, ไม่เกิน GEM_SLOTS ช่อง
+static func clean_gems(gems: Array) -> Array:
+	var out := []
+	for g in gems:
+		if CCBalance.GEMS.has(g) and not out.has(g) and out.size() < CCBalance.GEM_SLOTS:
+			out.append(g)
 	return out
 
 
 static func full_power(actor: Dictionary, skill: String) -> float:
-	var d: Dictionary = CCBalance.ACTIONS[skill]
+	var d := action_def(actor, skill)
 	if d.power == "":
 		return 0.0
 	var p := float(actor.stats[d.power])
@@ -87,20 +107,20 @@ static func crit_chance(unit: Dictionary) -> float:
 
 
 ## ท่านี้ผ่านครบแล้วคริแน่นอนไหม (Perfect ของ Attack)
-static func auto_crit(skill: String, perfect: bool) -> bool:
-	return perfect and CCBalance.ACTIONS[skill].perfect.has("crit")
+static func auto_crit(skill: String, perfect: bool, actor := {}) -> bool:
+	return perfect and action_def(actor, skill).perfect.has("crit")
 
 
 ## ดาเมจเมื่อผ่าน successes ช่อง (ก่อนคิดเทิร์นป้องกัน) — slots = จำนวนช่องจริง (-1 = ตามท่า)
 ## crit = ทอยคริจาก LCK ติด (Perfect ของ Attack คริเองอยู่แล้ว ไม่ซ้อน)
 static func damage_for(actor: Dictionary, target: Dictionary, skill: String, successes: int, slots := -1, crit := false) -> int:
-	var d: Dictionary = CCBalance.ACTIONS[skill]
+	var d := action_def(actor, skill)
 	if successes <= 0 or d.kind == "flee" or d.kind == "drone":
 		return 0
 	var n: int = d.slots if slots < 0 else slots
 	var perfect: bool = successes >= n
 	var raw := full_power(actor, skill) * successes / float(n)
-	if crit or auto_crit(skill, perfect):
+	if crit or auto_crit(skill, perfect, actor):
 		raw *= float(mod(actor, "crit_mult." + skill, CCBalance.CRIT_MULT)) # Breacher
 	# ตัวคูณจาก Passive
 	if n >= 4:
@@ -120,24 +140,24 @@ static func damage_for(actor: Dictionary, target: Dictionary, skill: String, suc
 	return dmg
 
 
-## โอกาสผ่านต่อช่องของวิธีป้องกัน (รวม chance_mod ของวิธีนั้น + Focus)
-static func defense_chance(defender: Dictionary, defense: String, attack_skill: String, focus: int) -> float:
+## โอกาสผ่านต่อช่องของวิธีป้องกัน (รวม chance_mod ของวิธีนั้น + Focus) — attacker = คนตี (Attack ของอาวุธ Psi Rod เป็นเวท)
+static func defense_chance(defender: Dictionary, defense: String, attack_skill: String, focus: int, attacker := {}) -> float:
 	var cm: float = CCBalance.DEFENSES[defense].get("chance_mod", 0.0)
 	if defense == "dodge":
 		cm = float(mod(defender, "dodge_penalty", cm)) # Light Step: ไม่มีโทษ
 	var bonus := 0.0
 	if defense == "block":
 		bonus += float(mod(defender, "check_bonus.block")) # Reinforced Plating
-		if CCBalance.ACTIONS[attack_skill].kind == "magic":
+		if action_def(attacker, attack_skill).kind == "magic":
 			bonus += float(mod(defender, "check_bonus.block_tec")) # Psi Shield
-	var c := chance(defender.stats[defense_stat(defense, attack_skill)], focus, bonus) * 100.0 + cm
+	var c := chance(defender.stats[defense_stat(defense, attack_skill, attacker)], focus, bonus) * 100.0 + cm
 	return clampf(c, CCBalance.CHANCE_MIN, CCBalance.CHANCE_MAX_WITH_FOCUS) / 100.0
 
 
 ## สเตตัสที่ใช้เช็คการป้องกัน (Block เจอเวทใช้ MAG)
-static func defense_stat(defense: String, attack_skill: String) -> String:
+static func defense_stat(defense: String, attack_skill: String, attacker := {}) -> String:
 	var dd: Dictionary = CCBalance.DEFENSES[defense]
-	if CCBalance.ACTIONS[attack_skill].kind == "magic" and dd.has("check_magic"):
+	if action_def(attacker, attack_skill).kind == "magic" and dd.has("check_magic"):
 		return dd.check_magic
 	return dd.check
 
@@ -167,6 +187,14 @@ static func defense_effect(defender: Dictionary, attacker: Dictionary, defense: 
 			if perfect:
 				out.mult = CCBalance.COUNTER_PERFECT_DAMAGE_MULT
 	return out
+
+
+## HP ที่ต้องจ่ายเพื่อใช้ท่า (hp_cost × Max HP) — ไม่เกิน HP ปัจจุบัน - 1
+static func hp_cost_for(actor: Dictionary, skill: String) -> int:
+	var f := float(action_def(actor, skill).get("hp_cost", 0.0))
+	if f <= 0.0:
+		return 0
+	return clampi(ceili(actor.max_hp * f), 0, maxi(0, actor.hp - 1))
 
 
 ## ดาเมจโดรนต่อตา ถ้า actor ปล่อยโดรนตอนนี้ (Full Automation ×2)
@@ -207,6 +235,10 @@ static func create_battle(config: Dictionary) -> Dictionary:
 	hero.focus = mini(CCBalance.FOCUS_MAX, CCBalance.FOCUS_START + int(mod(hero, "start_focus"))) # Deep Focus
 	hero.barrier = int(mod(hero, "start_barrier")) # Kinetic Barrier
 	hero.reroll = int(mod(hero, "reroll_first_fail")) # Second Chance
+	hero.attack_def = h.get("attack_def", {}).duplicate(true) # ว่าง = ACTIONS.attack
+	if h.has("gems"):
+		hero.gems = clean_gems(h.gems)
+	hero.granted = h.get("granted", []).filter(func(g): return CCBalance.ACTIONS.has(g) and g != "attack" and g != "flee")
 	var monster := _unit(m.name, "", m.stats, int(m.stats.hp))
 	var s := {
 		"config": config.duplicate(true), "rng_state": 0, "round": 0, "order": [], "turn": 0,
@@ -350,7 +382,7 @@ static func apply_action(prev: Dictionary, action: Dictionary) -> Dictionary:
 				var skill := "flee" if type == "flee" else str(action.get("skill", ""))
 				if skill != "flee" and not skills_for(hero).has(skill):
 					return {"state": prev, "error": "You can't use %s." % skill}
-				var cost: int = CCBalance.ACTIONS[skill].get("cost", 0)
+				var cost: int = action_def(hero, skill).get("cost", 0)
 				if focus + cost > hero.focus:
 					return {"state": prev, "error": "Not enough Focus."}
 				hero.focus -= focus + cost
@@ -440,18 +472,22 @@ static func _roll_for(unit: Dictionary, n: int, p: float, first_bonus: float, rn
 
 
 static func _exchange(s: Dictionary, who: int, skill: String, focus: int, defense: String, def_focus: int, rng: RandomNumberGenerator) -> void:
-	var d: Dictionary = CCBalance.ACTIONS[skill]
 	var actor: Dictionary = s.units[who]
+	var d := action_def(actor, skill)
 	var target_id := 1 - who
 	var target: Dictionary = s.units[target_id]
 	var n := slots_for(s, who, skill)
+	var hp_cost := hp_cost_for(actor, skill)
+	if hp_cost > 0: # จ่าย HP ก่อนทอย (ไม่ทำให้ตาย)
+		actor.hp -= hp_cost
+		s.log.append({"t": "damage", "unit": who, "amount": hp_cost, "hp": actor.hp, "cause": "hp_cost"})
 	var p := action_chance(actor, skill, focus)
 	var first_bonus := float(mod(actor, "first_slot_bonus." + skill))
 	var r := _roll_for(actor, n, p, first_bonus, rng)
 	var slots: Array = r.slots
 	var successes: int = slots.count(1)
 	var perfect: bool = successes == n
-	s.log.append({"t": "check", "unit": who, "skill": skill, "chance": p, "focus": focus, "slots": slots, "successes": successes, "perfect": perfect, "rerolled": r.rerolled})
+	s.log.append({"t": "check", "unit": who, "skill": skill, "name": d.name, "chance": p, "focus": focus, "slots": slots, "successes": successes, "perfect": perfect, "rerolled": r.rerolled})
 
 	if d.kind == "flee":
 		if successes > 0:
@@ -476,7 +512,7 @@ static func _exchange(s: Dictionary, who: int, skill: String, focus: int, defens
 	var eff := defense_effect(target, actor, "", 0)
 	if CCBalance.DEFENSES.has(defense):
 		var dd: Dictionary = CCBalance.DEFENSES[defense]
-		var dp := defense_chance(target, defense, skill, def_focus)
+		var dp := defense_chance(target, defense, skill, def_focus, actor)
 		var dr := _roll_for(target, dd.slots, dp, 0.0, rng)
 		var dslots: Array = dr.slots
 		var ds: int = dslots.count(1)
@@ -491,7 +527,7 @@ static func _exchange(s: Dictionary, who: int, skill: String, focus: int, defens
 		s.log.append({"t": "effect", "unit": target_id, "effect": "focus"})
 
 	# ---- คริ: Perfect ของ Attack = คริแน่นอน, ท่าอื่นทอยจาก LCK ครั้งเดียวต่อการใช้ท่า (ตี 2 ครั้งใช้ผลเดียวกัน)
-	var crit := auto_crit(skill, perfect)
+	var crit := auto_crit(skill, perfect, actor)
 	if not crit:
 		var cc := crit_chance(actor)
 		if cc > 0.0:
@@ -500,10 +536,20 @@ static func _exchange(s: Dictionary, who: int, skill: String, focus: int, defens
 		s.log.append({"t": "effect", "unit": who, "effect": "crit"})
 
 	var hits := 2 if perfect and d.perfect.has("double") else 1
+	var dealt := 0
 	for h in hits:
-		_hurt(s, target_id, apply_mult(damage_for(actor, target, skill, successes, n, crit), eff.mult), "hit")
+		var dmg := apply_mult(damage_for(actor, target, skill, successes, n, crit), eff.mult)
+		dealt += dmg
+		_hurt(s, target_id, dmg, "hit")
 		if s.result != "":
-			return
+			break
+	var drain := floori(dealt * float(d.get("drain", 0.0))) # Blood Siphon
+	if drain > 0 and actor.hp > 0 and actor.hp < actor.max_hp:
+		var before: int = actor.hp
+		actor.hp = mini(actor.max_hp, actor.hp + drain)
+		s.log.append({"t": "heal", "unit": who, "amount": actor.hp - before, "hp": actor.hp, "cause": "drain"})
+	if s.result != "":
+		return
 	if perfect:
 		if d.perfect.has("stun"):
 			target.stunned = true
@@ -562,7 +608,7 @@ static func _monster_turn(s: Dictionary, rng: RandomNumberGenerator) -> void:
 		return
 	# ประกาศท่า แล้วรอผู้เล่นเลือกวิธีป้องกัน
 	s.pending = {"skill": pick}
-	s.log.append({"t": "intent", "unit": MONSTER, "skill": pick})
+	s.log.append({"t": "intent", "unit": MONSTER, "skill": pick, "name": action_def(s.units[MONSTER], pick).name})
 
 
 # ================================================================ replay

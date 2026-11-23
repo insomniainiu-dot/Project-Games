@@ -64,13 +64,32 @@ const ITEMS := {
 	"Fire Bomb": {"type": "use", "battle": "attack", "price": 35, "damage": 12, "desc": "Deal 12 damage, never misses. (Battle: attack turn)"},
 	"Poison Dart": {"type": "use", "battle": "attack", "price": 30, "poison": {"turns": 3, "damage": 4}, "desc": "Poison: 4 damage for 3 turns. (Battle: attack turn)"},
 	"Smoke Ball": {"type": "use", "battle": "any", "price": 25, "escape": true, "desc": "Escape a battle for sure. (Battle: any turn)"},
-	# อาวุธ
-	"Oak Staff": {"type": "weapon", "price": 0, "atk": 1, "mag": 2, "desc": "A plain staff."},
-	"Moon Rod": {"type": "weapon", "price": 90, "atk": 2, "mag": 6, "desc": "A rod that glows under the moon."},
-	"Iron Blade": {"type": "weapon", "price": 110, "atk": 6, "desc": "A sturdy iron sword."},
-	"Hunter Bow": {"type": "weapon", "price": 150, "atk": 5, "spd": 3, "die_body": "quick", "desc": "Light and quick. (Quick die)"},
-	"Sun Staff": {"type": "weapon", "price": 220, "atk": 3, "mag": 10, "die_rune": "spark", "desc": "Burns with solar magic. (Spark rune)"},
-	"War Axe": {"type": "weapon", "price": 260, "atk": 11, "spd": -1, "die_body": "heavy", "desc": "Heavy, but hits like a cart. (Heavy die)"},
+	# อาวุธ — weapon_type กำหนดท่า Attack (CCBalance.WEAPON_TYPES)
+	"Oak Staff": {"type": "weapon", "weapon_type": "melee", "price": 0, "atk": 1, "mag": 2, "desc": "A plain staff."},
+	"Moon Rod": {"type": "weapon", "weapon_type": "rod", "price": 90, "atk": 2, "mag": 6, "desc": "A rod that glows under the moon."},
+	"Iron Blade": {"type": "weapon", "weapon_type": "melee", "price": 110, "atk": 6, "desc": "A sturdy iron sword."},
+	"Hunter Bow": {"type": "weapon", "weapon_type": "bow", "price": 150, "atk": 5, "spd": 3, "die_body": "quick", "desc": "Light and quick. (Quick die)"},
+	"Sun Staff": {"type": "weapon", "weapon_type": "rod", "price": 220, "atk": 3, "mag": 10, "die_rune": "spark", "desc": "Burns with solar magic. (Spark rune)"},
+	"War Axe": {"type": "weapon", "weapon_type": "heavy", "price": 260, "atk": 11, "spd": -1, "die_body": "heavy", "desc": "Heavy, but hits like a cart. (Heavy die)"},
+	# อาวุธ Unique: ค่าตายตัว มีข้อดี + ข้อเสีย — ไม่ขายในร้าน ได้จากมอนสเตอร์ (MONSTERS "unique_chance")
+	#   mods = ผลพิเศษ (คีย์เดียวกับ PassiveTree mods รวมด้วย CCBalance.merge_mods)
+	#   grants = ท่าติดอาวุธ (ใช้ได้เลยโดยไม่กินช่อง gem) · pros / cons = ข้อความที่ผู้เล่นเห็น
+	"Voidreaver": {"type": "weapon", "weapon_type": "heavy", "rarity": "unique", "price": 400, "atk": 12, "spd": -4,
+		"mods": {"attack_mult": 1.2, "no_dodge": true},
+		"pros": ["Attack damage x1.2"], "cons": ["You can't Dodge", "SPD -4"], "desc": "A hull-cutter ripped off a derelict warship."},
+	"Siphon Edge": {"type": "weapon", "weapon_type": "melee", "rarity": "unique", "price": 400, "atk": 8, "lck": 3,
+		"mods": {"stat_pct.hp": -15}, "grants": "blood_siphon",
+		"pros": ["Grants Blood Siphon: heals 50% of the damage it deals"], "cons": ["Max HP -15%"], "desc": "The blade drinks. So do you."},
+	"Singularity Rod": {"type": "weapon", "weapon_type": "rod", "rarity": "unique", "price": 450, "atk": 2, "mag": 12,
+		"mods": {"imperfect_mult": 0.8}, "grants": "singularity",
+		"pros": ["Grants Singularity: 4 slots, TEC x2.4, Perfect ignores resist + stuns"], "cons": ["Singularity costs 2 Focus and 10% max HP", "Every non-Perfect hit deals x0.8"],
+		"desc": "A pocket black hole on a stick. Handle with care."},
+	"Ricochet Repeater": {"type": "weapon", "weapon_type": "bow", "rarity": "unique", "price": 400, "atk": 6, "spd": 4, "lck": 4, "def": -3,
+		"grants": "ricochet",
+		"pros": ["Grants Ricochet: 3 slots, SPD check, Perfect hits twice", "SPD +4, LCK +4"], "cons": ["ARM -3"], "desc": "Every shot finds a second target. Usually the same one."},
+	"Warden's Bulwark": {"type": "weapon", "weapon_type": "melee", "rarity": "unique", "price": 400, "atk": 3, "def": 6, "hp": 15,
+		"mods": {"start_barrier": 10, "guard_heal_pct": 8, "attack_mult": 0.7},
+		"pros": ["Start each battle with a 10 Barrier", "Guard heals 8% max HP", "ARM +6, HP +15"], "cons": ["Attack damage x0.7"], "desc": "A riot shield with a stun baton bolted on."},
 	# ชุดเกราะ
 	"Travel Cloak": {"type": "armor", "price": 0, "def": 1, "desc": "A worn cloak."},
 	"Leather Vest": {"type": "armor", "price": 70, "def": 4, "desc": "Simple leather protection."},
@@ -112,10 +131,60 @@ static func stat_text(item: String) -> String:
 static func sell_price(item: String) -> int:
 	return int(ITEMS[item].price * SELL_RATE)
 
+
+## ประเภทอาวุธของไอเทม ("" = ไม่ใช่อาวุธ)
+static func weapon_type(item: String) -> String:
+	var d: Dictionary = ITEMS.get(item, {})
+	if d.get("type", "") != "weapon":
+		return ""
+	return d.get("weapon_type", CCBalance.DEFAULT_WEAPON_TYPE)
+
+
+## คำอธิบายท่า Attack ของอาวุธ เช่น "Attack: Cleave (4 slots, ATK)"
+static func weapon_attack_text(item: String) -> String:
+	var wt := weapon_type(item)
+	if wt == "":
+		return ""
+	var a := CCBalance.weapon_attack(wt)
+	return "Attack: %s (%d slots, %s%s)" % [a.name, a.slots, stat_label(a.check), ", tech" if a.kind == "magic" else ""]
+
+
+static func gem_name(gem: String) -> String:
+	return CCBalance.ACTIONS[gem].name
+
+
+## "common" / "unique" (Phase 2 จะเพิ่ม rare / epic)
+static func rarity(item: String) -> String:
+	return ITEMS.get(item, {}).get("rarity", "common")
+
+
+static func unique_items() -> Array:
+	return ITEMS.keys().filter(func(it): return rarity(it) == "unique")
+
+
+## ชื่อที่แสดง: Unique มี ★ นำหน้า
+static func display_name(item: String) -> String:
+	return ("★ " + item) if rarity(item) == "unique" else item
+
+
+## ข้อดี/ข้อเสียของ Unique เป็นข้อความหลายบรรทัด ("" = ไม่ใช่ Unique)
+static func unique_text(item: String) -> String:
+	var d: Dictionary = ITEMS.get(item, {})
+	if rarity(item) != "unique":
+		return ""
+	var lines := PackedStringArray()
+	for p in d.get("pros", []):
+		lines.append("+ " + p)
+	for c in d.get("cons", []):
+		lines.append("- " + c)
+	return "\n".join(lines)
+
 # ---------------------------------------------------------------- มอนสเตอร์
 # sprite: ไฟล์สไปรต์ชีต (แถว 0 = หันหน้า, แถว 1 = หันซ้าย), frames = จำนวนเฟรมต่อแถว
 # cc_actions: ท่าของมอนสเตอร์ในระบบต่อสู้ช่องเช็ค {ท่า: น้ำหนักการสุ่ม} (ท่าดูใน CCBalance.ACTIONS, "guard" = ตั้งการ์ด)
-# cc_defense: วิธีป้องกันของมอนสเตอร์ตอนโดนโจมตี {block/dodge/counter: น้ำหนักการสุ่ม}# dd_job / dd_personality: อาชีพ (สกิล) และนิสัย AI ในระบบต่อสู้ Dice Duel (เก็บไว้ ยังไม่ได้ใช้)
+# cc_defense: วิธีป้องกันของมอนสเตอร์ตอนโดนโจมตี {block/dodge/counter: น้ำหนักการสุ่ม}
+# unique_chance: โอกาสดรอปอาวุธ Unique ที่ยังไม่มีเมื่อชนะ (ไม่ใส่ = UNIQUE_DROP_CHANCE)
+# dd_job / dd_personality: อาชีพ (สกิล) และนิสัย AI ในระบบต่อสู้ Dice Duel (เก็บไว้ ยังไม่ได้ใช้)
 # offense/defense: น้ำหนักการสุ่มท่าของระบบต่อสู้เดิม (battle.gd) — Dice Duel ไม่ใช้แล้ว
 const MONSTERS := {
 	"Skeleton": {
@@ -136,18 +205,20 @@ const MONSTERS := {
 	"Goblin Chief": {
 		"sprite": "res://monsters/goblin.png", "frames": 4, "scale": 1.3, "tint": Color(1.0, 0.75, 0.6),
 		"hp": 60, "atk": 15, "def": 9, "mag": 2, "spd": 8, "exp": 60, "gold": 120,
-		"dd_job": "warrior", "dd_personality": "aggressive", "cc_actions": {"attack": 3, "heavy_blow": 1, "guard": 1}, "cc_defense": {"block": 2, "counter": 2},
+		"dd_job": "warrior", "dd_personality": "aggressive", "cc_actions": {"attack": 3, "heavy_blow": 1, "guard": 1}, "cc_defense": {"block": 2, "counter": 2}, "unique_chance": 1.0,
 		"offense": {"attack": 5, "strike": 4, "magic": 0},
 		"defense": {"guard": 4, "counter": 4, "ward": 1},
 	},
 	"Bone Lord": {
 		"sprite": "res://monsters/skeleton.png", "frames": 8, "scale": 1.35, "tint": Color(0.8, 0.8, 1.15),
 		"hp": 55, "atk": 12, "def": 8, "mag": 14, "spd": 7, "exp": 70, "gold": 140,
-		"dd_job": "magician", "dd_personality": "aggressive", "cc_actions": {"attack": 2, "spell": 2, "fireball": 1}, "cc_defense": {"block": 2, "dodge": 1},
+		"dd_job": "magician", "dd_personality": "aggressive", "cc_actions": {"attack": 2, "spell": 2, "fireball": 1}, "cc_defense": {"block": 2, "dodge": 1}, "unique_chance": 1.0,
 		"offense": {"attack": 4, "strike": 2, "magic": 5},
 		"defense": {"guard": 3, "counter": 2, "ward": 5},
 	},
 }
+
+const UNIQUE_DROP_CHANCE := 0.04
 
 # มอนสเตอร์ที่สุ่มเจอในช่องต่อสู้
 const WILD_MONSTERS := ["Skeleton", "Goblin"]

@@ -22,12 +22,12 @@ static func pmf(n: int, p: float) -> Array:
 static func exchange(s: Dictionary, attacker_id: int, skill: String, focus: int, defense: String, def_focus: int) -> Dictionary:
 	var att: Dictionary = s.units[attacker_id]
 	var tgt: Dictionary = s.units[1 - attacker_id]
-	var d: Dictionary = CCBalance.ACTIONS[skill]
+	var d := CCBattle.action_def(att, skill)
 	var n := CCBattle.slots_for(s, attacker_id, skill)
 	var pa := pmf(n, CCBattle.action_chance(att, skill, focus)) # ประมาณ: ไม่คิดโบนัสช่องแรก / ทอยใหม่
 	var pd := [1.0]
 	if CCBalance.DEFENSES.has(defense):
-		pd = pmf(CCBalance.DEFENSES[defense].slots, CCBattle.defense_chance(tgt, defense, skill, def_focus))
+		pd = pmf(CCBalance.DEFENSES[defense].slots, CCBattle.defense_chance(tgt, defense, skill, def_focus, att))
 	var out := {"taken": 0.0, "counter": 0.0, "kill": 0.0, "perfect": 0.0}
 	for k in range(1, n + 1):
 		for j in pd.size():
@@ -49,7 +49,7 @@ static func exchange(s: Dictionary, attacker_id: int, skill: String, focus: int,
 static func _perfect_value(s: Dictionary, skill: String) -> float:
 	var hero: Dictionary = s.units[CCBattle.HERO]
 	var mon: Dictionary = s.units[CCBattle.MONSTER]
-	var d: Dictionary = CCBalance.ACTIONS[skill]
+	var d := CCBattle.action_def(hero, skill)
 	var v := 0.0
 	if d.perfect.has("stun"):
 		v += CCBattle.full_power(mon, "attack") * 0.5
@@ -105,7 +105,7 @@ static func choose_action(s: Dictionary) -> Dictionary:
 	var best := {"type": "guard"}
 	var best_score: float = 3.0 + hero.max_hp * float(CCBattle.mod(hero, "guard_heal_pct")) / 100.0 # Guard ได้ Focus + ลดดาเมจ (+ ฮีลจาก Adrenal Surge)
 	for skill in CCBattle.skills_for(hero):
-		var cost: int = CCBalance.ACTIONS[skill].get("cost", 0)
+		var cost: int = CCBattle.action_def(hero, skill).get("cost", 0)
 		for f in range(0, hero.focus - cost + 1):
 			var score := 0.0
 			if not CCBattle.defendable(skill):
@@ -114,10 +114,12 @@ static func choose_action(s: Dictionary) -> Dictionary:
 					best_score = score
 					best = {"type": "skill", "skill": skill, "focus": f}
 				continue
+			var drain := float(CCBattle.action_def(hero, skill).get("drain", 0.0))
 			for defense in weights:
 				var e := exchange(s, CCBattle.HERO, skill, f, defense, 0)
-				score += (float(weights[defense]) / total) * (e.taken - e.counter + e.kill * KILL_BONUS + e.perfect * _perfect_value(s, skill))
-			score -= (f + cost) * FOCUS_COST
+				var heal := minf(e.taken * drain, float(hero.max_hp - hero.hp))
+				score += (float(weights[defense]) / total) * (e.taken + heal - e.counter + e.kill * KILL_BONUS + e.perfect * _perfect_value(s, skill))
+			score -= (f + cost) * FOCUS_COST + CCBattle.hp_cost_for(hero, skill)
 			if score > best_score:
 				best_score = score
 				best = {"type": "skill", "skill": skill, "focus": f}
@@ -131,7 +133,8 @@ static func choose_defense(s: Dictionary) -> Dictionary:
 	var skill: String = s.pending.skill
 	# HP ต่ำ: สละการป้องกันเพื่อฮีล (ถ้าฮีลแล้วรอดจากการโดนเต็ม ๆ)
 	if hero.hp < hero.max_hp * CCBalance.HERO_AI_HEAL_BELOW:
-		var worst := CCBattle.damage_for(s.units[CCBattle.MONSTER], hero, skill, CCBalance.ACTIONS[skill].slots)
+		var mon: Dictionary = s.units[CCBattle.MONSTER]
+		var worst := CCBattle.damage_for(mon, hero, skill, CCBattle.action_def(mon, skill).slots)
 		for item in ["Big Herb", "Herb"]:
 			if s.items.has(item) and hero.hp + int(GameData.ITEMS[item].heal) > worst:
 				return {"type": "item", "item": item}

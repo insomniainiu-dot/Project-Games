@@ -135,6 +135,25 @@ func _victory(player: PlayerStats, m: Dictionary) -> void:
 		text += "\n+%d Passive Point%s! Press Passive to spend." % [ups, "" if ups == 1 else "s"]
 	_state.notify()
 	await _dialogs.message(text)
+	await _unique_drop(player, m)
+
+
+## ดรอปอาวุธ Unique ที่ยังไม่มี (ผู้คุมเมืองดรอปแน่นอน, มอนสเตอร์ทั่วไปตาม UNIQUE_DROP_CHANCE)
+func _unique_drop(player: PlayerStats, m: Dictionary) -> void:
+	if randf() >= float(m.get("unique_chance", GameData.UNIQUE_DROP_CHANCE)):
+		return
+	var pool: Array = GameData.unique_items().filter(func(it): return not player.owns(it))
+	if pool.is_empty():
+		return
+	var item: String = pool[randi() % pool.size()]
+	var info := "UNIQUE DROP!  %s\n%s\n%s" % [GameData.display_name(item), GameData.weapon_attack_text(item), GameData.unique_text(item)]
+	if not player.add_gear(item):
+		await _dialogs.message(info + "\n\nYour gear bag is full... you had to leave it behind.")
+		return
+	_state.notify()
+	if await _dialogs.choose(info + "\n\nEquip it now?", ["Equip now", "Keep in gear bag"]) == 0:
+		player.equip(item)
+		_state.notify()
 
 
 ## แพ้: กลับปราสาท เสียเงิน 30% HP เหลือครึ่ง

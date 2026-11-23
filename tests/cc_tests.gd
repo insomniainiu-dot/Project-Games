@@ -20,6 +20,8 @@ func _init() -> void:
 	_jobs()
 	_passive_mods()
 	_crit()
+	_weapons_and_gems()
+	_uniques()
 	print("\nCheck combat tests: %d passed, %d failed" % [_passed, _failed])
 	quit(1 if _failed > 0 else 0)
 
@@ -427,6 +429,130 @@ func _crit() -> void:
 			crit_dmg_ok = crit_dmg_ok and dm[0].amount == CCBattle.damage_for(b.units[0], {"stats": st(5000, 1, 0, 0, 1), "guarding": false}, "spell", chk.successes, -1, true)
 	check(hits > 250 and crits > hits * 0.4 and crits < hits * 0.6, "LCK 1000 crits about 50%% of hits (%d/%d)" % [crits, hits])
 	check(crit_dmg_ok, "logged crit hits deal crit damage")
+
+
+# ================================================================ อาวุธกำหนด Attack + Skill Gem
+func _weapons_and_gems() -> void:
+	section("weapon attacks + skill gems")
+	# ท่า Attack ของแต่ละประเภทอาวุธ
+	eq(CCBalance.weapon_attack("melee").slots, CCBalance.ACTIONS.attack.slots, "melee = classic Attack")
+	eq(CCBalance.weapon_attack("heavy").slots, 4, "heavy Attack = 4 slots")
+	eq(CCBalance.weapon_attack("bow").check, "spd", "bow Attack checks SPD")
+	eq(CCBalance.weapon_attack("rod").kind, "magic", "rod Attack is tech")
+	eq(CCBalance.weapon_attack("rod").cost, 0, "weapon attacks keep base keys (cost 0)")
+	for it in GameData.ITEMS:
+		if GameData.ITEMS[it].type == "weapon":
+			check(CCBalance.WEAPON_TYPES.has(GameData.weapon_type(it)), "%s has a known weapon type" % it)
+	eq(GameData.weapon_type("Herb"), "", "non-weapons have no weapon type")
+	# ดาเมจ / โอกาสตามอาวุธ
+	var a := unit(st(30, 10, 4, 20, 9))
+	var t := unit(st(30, 0, 4, 6, 5))
+	a.attack_def = CCBalance.weapon_attack("rod")
+	eq(CCBattle.action_chance(a, "attack"), CCBattle.chance(20), "rod Attack checks TEC")
+	eq(CCBattle.damage_for(a, t, "attack", 3), floori(20 * 1.3 * CCBalance.CRIT_MULT - 6 * CCBalance.MAGIC_REDUCE_PER_MAG), "rod Attack: TEC power, resist by TEC")
+	eq(CCBattle.defense_stat("block", "attack", a), "mag", "Block vs a rod Attack checks TEC")
+	eq(CCBattle.defense_stat("block", "attack"), "def", "Block vs a plain Attack still checks ARM")
+	a.attack_def = CCBalance.weapon_attack("bow")
+	eq(CCBattle.damage_for(a, unit(st(30, 0, 20, 6, 5)), "attack", 2), floori(10 * 1.3), "bow Perfect ignores ARM, no auto-crit")
+	# ในการต่อสู้
+	var hs := st(400, 100, 5, 5, 8)
+	var s := CCBattle.create_battle({"seed": 1, "hero": {"name": "H", "job": "Vanguard", "stats": hs, "attack_def": CCBalance.weapon_attack("heavy"), "gems": ["fireball"]},
+		"monster": {"name": "M", "stats": st(5000, 1, 0, 1, 5), "actions": {"guard": 1}, "defense": NO_DEF}})
+	eq(CCBattle.skills_for(s.units[0]), ["attack", "fireball"], "skills = Attack + socketed gems")
+	check(err(s, {"type": "skill", "skill": "heavy_blow", "focus": 0}), "job skill not socketed = can't use it")
+	check(err(s, {"type": "skill", "skill": "spell", "focus": 0}), "Tech Attack is a gem now")
+	var h := act(s, {"type": "skill", "skill": "attack", "focus": 1})
+	var c: Dictionary = events(h, "check")[0]
+	check(c.slots.size() == 4 and c.name == "Cleave", "engine rolls the weapon's Attack (Cleave, 4 slots)")
+	eq(CCBattle.replay(s.config, h.actions).units[1].hp, h.units[1].hp, "replay matches with weapon attacks")
+	eq(CCBattle.clean_gems(["spell", "spell", "nope", "fireball", "twin_stab"]), ["spell", "fireball"], "gems: known, unique, max 2")
+	# PlayerStats
+	var p := PlayerStats.new()
+	eq(Array(p.gems), CCBalance.default_gems(GameData.START_JOB), "new player starts with Tech Attack + job gem")
+	p.change_job("Vanguard")
+	eq(Array(p.gems), ["spell", "heavy_blow"], "change job swaps the job gem")
+	check(p.gem_bag.has("fireball"), "old job gem goes to the gem bag")
+	check(not p.add_gem("fireball"), "can't add a gem you own")
+	check(p.add_gem("twin_stab") and p.gem_bag.has("twin_stab"), "new gem goes to the bag when slots are full")
+	eq(p.set_gem(0, "twin_stab"), "spell", "swap a gem in, old one back to the bag")
+	eq(Array(p.gems), ["twin_stab", "heavy_blow"], "gem slots after swap")
+	eq(p.remove_gem(1), "heavy_blow", "remove a gem")
+	eq(CCBridge.hero_config(p).gems, ["twin_stab"], "bridge passes socketed gems")
+	eq(CCBridge.hero_config(p).attack_def.name, "Strike", "starting Oak Staff = melee Strike")
+	p.add_gear("War Axe")
+	p.equip("War Axe")
+	eq(CCBridge.hero_config(p).attack_def.slots, 4, "War Axe gives Cleave through the bridge")
+
+
+# ================================================================ อาวุธ Unique
+func _uniques() -> void:
+	section("unique weapons")
+	var uniques := GameData.unique_items()
+	check(uniques.size() >= 5, "there are unique weapons")
+	for it in uniques:
+		var d: Dictionary = GameData.ITEMS[it]
+		check(not d.get("pros", []).is_empty() and not d.get("cons", []).is_empty(), "%s has pros and cons" % it)
+		check(not d.has("grants") or CCBalance.ACTIONS.has(d.grants), "%s grants a real skill" % it)
+		check(not GameData.SMITHY_STOCK.weapon.has(it), "%s is not sold in the shop" % it)
+	eq(GameData.display_name("Voidreaver"), "★ Voidreaver", "uniques show a star")
+	# merge mods: _mult คูณ, ตัวเลขบวก
+	var mm := CCBalance.merge_mods({"attack_mult": 0.6, "start_barrier": 5}, {"attack_mult": 1.3, "start_barrier": 12, "no_dodge": true})
+	check(is_equal_approx(mm.attack_mult, 0.78) and mm.start_barrier == 17 and mm.no_dodge, "merge_mods: x for _mult, + for numbers")
+	# PlayerStats + bridge
+	var p := PlayerStats.new()
+	var hp0 := p.max_hp()
+	eq(p.preview_stat("hp", "Siphon Edge"), roundi(hp0 * 0.85), "preview counts the unique's HP -15%")
+	p.add_gear("Siphon Edge")
+	p.equip("Siphon Edge")
+	eq(p.max_hp(), roundi(hp0 * 0.85), "Siphon Edge: max HP -15%")
+	var cfg := CCBridge.hero_config(p)
+	eq(cfg.granted, ["blood_siphon"], "bridge passes the granted skill")
+	eq(Array(p.gems).size(), 2, "granted skill doesn't use a gem slot")
+	var b := CCBattle.create_battle({"seed": 1, "hero": cfg, "monster": CCBridge.monster_config("Goblin")})
+	check(CCBattle.skills_for(b.units[0]).has("blood_siphon") and CCBattle.skills_for(b.units[0]).size() == 4, "skills = Attack + 2 gems + weapon skill")
+	p.add_gear("Voidreaver")
+	p.equip("Voidreaver")
+	var vm: Dictionary = CCBridge.hero_config(p).mods
+	check(vm.get("no_dodge", false) and is_equal_approx(vm.get("attack_mult", 1.0), GameData.ITEMS.Voidreaver.mods.attack_mult), "Voidreaver mods reach the battle")
+	eq(CCBridge.hero_config(p).granted, [], "swapping weapons drops the granted skill")
+	# Blood Siphon: ฟื้น HP 50% ของดาเมจ
+	var hs := st(400, 100, 5, 5, 8)
+	var sb := CCBattle.create_battle({"seed": 1, "hero": {"name": "H", "job": "", "stats": hs, "hp": 100, "gems": [], "granted": ["blood_siphon"]},
+		"monster": {"name": "M", "stats": st(5000, 1, 0, 1, 5), "actions": {"guard": 1}, "defense": NO_DEF}})
+	var sr := act(sb, {"type": "skill", "skill": "blood_siphon", "focus": 1})
+	var dealt: int = events(sr, "damage").filter(func(e): return e.unit == CCBattle.MONSTER)[0].amount
+	var heals: Array = events(sr, "heal").filter(func(e): return e.cause == "drain")
+	check(heals.size() == 1 and heals[0].amount == floori(dealt * 0.5), "Blood Siphon heals 50%% of %d" % dealt)
+	check(err(CCBattle.create_battle({"seed": 1, "hero": {"name": "H", "job": "", "stats": hs, "gems": []},
+		"monster": {"name": "M", "stats": st(50, 1, 0, 1, 5), "actions": {"guard": 1}, "defense": NO_DEF}}), {"type": "skill", "skill": "blood_siphon", "focus": 0}),
+		"no unique = no weapon skill")
+	# Singularity: จ่าย 2 Focus + 10% HP, ไม่ทำให้ตาย
+	var sg := CCBattle.create_battle({"seed": 1, "hero": {"name": "H", "job": "", "stats": st(100, 5, 5, 100, 8), "gems": [], "granted": ["singularity"]},
+		"monster": {"name": "M", "stats": st(5000, 1, 0, 1, 5), "actions": {"guard": 1}, "defense": NO_DEF}})
+	sg.units[0].focus = 3
+	var sgr := act(sg, {"type": "skill", "skill": "singularity", "focus": 1})
+	var paid: Array = events(sgr, "damage").filter(func(e): return e.cause == "hp_cost")
+	check(paid.size() == 1 and paid[0].amount == 10, "Singularity costs 10% max HP")
+	eq(sgr.units[0].focus, 0, "Singularity costs 2 Focus (+1 spent)")
+	check(events(sgr, "effect").any(func(e): return e.effect == "stun"), "Singularity Perfect stuns")
+	var low := sg.duplicate(true)
+	low.units[0].hp = 1
+	eq(CCBattle.hp_cost_for(low.units[0], "singularity"), 0, "HP cost never kills you")
+	# AI ใช้ท่าติดอาวุธได้ไม่ error
+	var q := PlayerStats.new()
+	for it in uniques:
+		q.add_gear(it)
+		q.equip(it)
+		q.hp = q.max_hp()
+		var s := CCBattle.create_battle(CCBridge.config(q, "Goblin Chief", 3))
+		var n := 0
+		var ok := true
+		while s.result == "" and n < 300:
+			var r := CCBattle.apply_action(s, CCAi.choose(s))
+			ok = ok and r.error == ""
+			s = r.state
+			n += 1
+		check(ok and s.result != "", "AI fights legally with %s" % it)
 
 
 # ================================================================ Passive mods (T-062)

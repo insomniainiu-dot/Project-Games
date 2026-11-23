@@ -78,7 +78,7 @@ func _play(events: Array) -> void:
 				_shown_hp[e.unit] = e.hp
 				_update_cards()
 				_flash(e.unit)
-				_banner.text = "%s takes %d%s" % [_name(e.unit), e.amount, {"burn": " (over time)", "drone": " (drone)"}.get(e.cause, "")]
+				_banner.text = "%s takes %d%s" % [_name(e.unit), e.amount, {"burn": " (over time)", "drone": " (drone)", "hp_cost": " (paid HP)"}.get(e.cause, "")]
 				await _wait(EVENT_DELAY)
 			"item":
 				_shown_hp[e.unit] = mini(state.units[e.unit].max_hp, _shown_hp[e.unit] + e.heal)
@@ -101,7 +101,7 @@ func _play(events: Array) -> void:
 
 func _show_check(e: Dictionary) -> void:
 	_clear(_slots)
-	var what: String = CCBalance.DEFENSES[e.skill].name if e.get("defense", false) else CCBalance.ACTIONS[e.skill].name
+	var what := move_name(e)
 	_banner.text = "%s %s %s  (%d%% per slot%s)" % [_name(e.unit), "defends with" if e.get("defense", false) else "uses", what,
 		roundi(e.chance * 100), ", Focus +%d" % e.focus if e.get("focus", 0) > 0 else ""]
 	var labels := []
@@ -151,7 +151,7 @@ func _refresh() -> void:
 
 	# ---- ท่า
 	for skill in CCBattle.skills_for(hero):
-		var d: Dictionary = CCBalance.ACTIONS[skill]
+		var d := CCBattle.action_def(hero, skill)
 		var cost: int = d.get("cost", 0)
 		var n := CCBattle.slots_for(state, CCBattle.HERO, skill)
 		var lo := CCBattle.damage_for(hero, mon, skill, 1, n)
@@ -160,12 +160,19 @@ func _refresh() -> void:
 		var dmg_text := "dmg %d-%d" % [lo, hi * (2 if d.perfect.has("double") else 1)]
 		if d.kind == "drone":
 			dmg_text = "drone %d/turn x%d" % [CCBattle.drone_damage(hero), CCBattle.drone_turns(hero, false)]
-		var text := "%-13s %s  %d%%   %s%s   Perfect: %s" % [d.name, "◯".repeat(n), roundi(CCBattle.action_chance(hero, skill, _focus_pick) * 100),
-			dmg_text, "  [costs %d Focus]" % cost if cost > 0 else "", perfect]
+		var extras := ""
+		if cost > 0:
+			extras += "  [costs %d Focus]" % cost
+		if d.get("hp_cost", 0.0) > 0.0:
+			extras += "  [costs %d HP]" % ceili(hero.max_hp * d.hp_cost)
+		if d.get("drain", 0.0) > 0.0:
+			extras += "  [heals %d%% of damage]" % roundi(d.drain * 100)
+		var text := "%s%-13s %s  %d%%   %s%s   Perfect: %s" % ["★ " if hero.get("granted", []).has(skill) else "", d.name, "◯".repeat(n),
+			roundi(CCBattle.action_chance(hero, skill, _focus_pick) * 100), dmg_text, extras, perfect]
 		var b := _button(text, Vector2(0, 40), true)
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		b.disabled = _focus_pick + cost > hero.focus
-		b.tooltip_text = "%s\nChecks %s." % [text, GameData.stat_label(d.check)]
+		b.tooltip_text = "%s\nChecks %s.%s" % [text, GameData.stat_label(d.check), "  (Weapon attack)" if skill == "attack" else ("  (Unique weapon skill)" if hero.get("granted", []).has(skill) else "  (Skill Gem)")]
 		b.pressed.connect(_do.bind({"type": "skill", "skill": skill, "focus": _focus_pick}))
 		_controls.add_child(b)
 
@@ -224,15 +231,15 @@ func _focus_row(hero: Dictionary) -> HBoxContainer:
 ## เทิร์นป้องกัน: มอนสเตอร์ประกาศท่าแล้ว ผู้เล่นเลือกวิธีรับ
 func _build_defense(hero: Dictionary, mon: Dictionary) -> void:
 	var skill: String = state.pending.skill
-	var d: Dictionary = CCBalance.ACTIONS[skill]
+	var d := CCBattle.action_def(mon, skill)
 	_banner.text = "%s is about to use %s! Choose your defense" % [mon.name, d.name]
-	_controls.add_child(_label(15, MUTED, "%s: %d slots at %d%%, up to %d damage%s" % [d.name, d.slots, roundi(CCBattle.chance(mon.stats[d.check]) * 100),
+	_controls.add_child(_label(15, MUTED, "%s: %d slots at %d%%, up to %d damage%s" % [d.name, d.slots, roundi(CCBattle.action_chance(mon, skill) * 100),
 		CCBattle.damage_for(mon, hero, skill, d.slots), "  (magic)" if d.kind == "magic" else ""]))
 	for defense in CCBalance.DEFENSES:
 		var dd: Dictionary = CCBalance.DEFENSES[defense]
 		var e := CCAi.exchange(state, CCBattle.MONSTER, skill, 0, defense, _focus_pick)
 		var text := "%-8s %s  %d%%  (%s)   expected damage ~%d%s   %s" % [dd.name, "◯".repeat(dd.slots),
-			roundi(CCBattle.defense_chance(hero, defense, skill, _focus_pick) * 100), GameData.stat_label(CCBattle.defense_stat(defense, skill)),
+			roundi(CCBattle.defense_chance(hero, defense, skill, _focus_pick, mon) * 100), GameData.stat_label(CCBattle.defense_stat(defense, skill, mon)),
 			roundi(e.taken), ", hit back ~%d" % roundi(e.counter) if e.counter > 0 else "", CCBalance.DEFENSE_TEXT[defense]]
 		var b := _button(text, Vector2(0, 42), true)
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
@@ -304,6 +311,13 @@ func _name(i: int) -> String:
 	return state.units[i].name
 
 
+## ชื่อท่า/วิธีป้องกันใน event (Attack ใช้ชื่อตามอาวุธที่ engine บันทึกไว้)
+static func move_name(e: Dictionary) -> String:
+	if e.get("defense", false):
+		return CCBalance.DEFENSES[e.skill].name
+	return e.get("name", CCBalance.ACTIONS[e.skill].name)
+
+
 static func event_text(e: Dictionary, names: Array) -> String:
 	match e.t:
 		"start":
@@ -314,21 +328,21 @@ static func event_text(e: Dictionary, names: Array) -> String:
 			var marks := ""
 			for r in e.slots:
 				marks += "●" if r == 1 else "✕"
-			var what: String = CCBalance.DEFENSES[e.skill].name if e.get("defense", false) else CCBalance.ACTIONS[e.skill].name
+			var what := move_name(e)
 			return "%s: %s %s%s%s" % [names[e.unit], what, marks, " PERFECT" if e.perfect and e.skill != "flee" else "",
 				" (Second Chance re-rolled slot %d)" % (e.rerolled + 1) if e.get("rerolled", -1) >= 0 else ""]
 		"heal":
-			return "%s recovers %d HP (%s)" % [names[e.unit], e.amount, {"regen": "Auto-Repair", "guard": "Adrenal Surge"}.get(e.cause, e.cause)]
+			return "%s recovers %d HP (%s)" % [names[e.unit], e.amount, {"regen": "Auto-Repair", "guard": "Adrenal Surge", "drain": "Blood Siphon"}.get(e.cause, e.cause)]
 		"barrier":
 			return "Barrier absorbs %d (%d left)" % [e.amount, e.left]
 		"intent":
-			return "%s prepares %s!" % [names[e.unit], CCBalance.ACTIONS[e.skill].name]
+			return "%s prepares %s!" % [names[e.unit], move_name(e)]
 		"miss":
 			return "%s missed!" % names[e.unit]
 		"dodge":
 			return "%s dodged!" % names[e.unit]
 		"damage":
-			var why: String = {"burn": " - over time", "counter": " - counter!", "item": " - item", "drone": " - drone"}.get(e.cause, "")
+			var why: String = {"burn": " - over time", "counter": " - counter!", "item": " - item", "drone": " - drone", "hp_cost": " - paid HP"}.get(e.cause, "")
 			return "%s takes %d (%d HP left)%s" % [names[e.unit], e.amount, e.hp, why]
 		"effect":
 			match e.effect:

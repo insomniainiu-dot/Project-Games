@@ -5,6 +5,8 @@ extends SceneTree
 ## ฮีโร่ใช้อุปกรณ์เริ่มต้น + Herb 2 ลูก (เหมือนเริ่มเกม) เริ่มด้วย HP เต็ม
 
 const LEVELS := [1, 3, 5]
+##   ... -- 300 1 "Voidreaver"   # อาร์กิวเมนต์ที่ 3 = อาวุธที่ฮีโร่ถือ (เทียบอาวุธ/Unique)
+var _weapon := ""
 
 
 func _init() -> void:
@@ -12,6 +14,9 @@ func _init() -> void:
 	var per := int(args[0]) if args.size() > 0 else 300
 	var rng := RandomNumberGenerator.new()
 	rng.seed = int(args[1]) if args.size() > 1 else 1
+	_weapon = args[2] if args.size() > 2 else ""
+	if _weapon != "":
+		print("Weapon: %s" % _weapon)
 	var t0 := Time.get_ticks_msec()
 	var monsters: Array = GameData.MONSTERS.keys()
 	print("\nCheck combat simulation - %d battles per cell, %d total" % [per, per * GameData.JOBS.size() * LEVELS.size() * monsters.size()])
@@ -58,6 +63,9 @@ func _hero(job: String, lv: int) -> PlayerStats:
 	p.change_job(job)
 	if lv > 1:
 		p.gain_exp(_exp_to(lv))
+	if _weapon != "":
+		p.add_gear(_weapon)
+		p.equip(_weapon)
 	p.hp = p.max_hp()
 	return p
 

@@ -56,6 +56,11 @@ const ACTIONS := {
 	"twin_stab": {"name": "Twin Shiv", "slots": 2, "check": "spd", "power": "atk", "mult": 1.45, "kind": "phys", "perfect": ["double", "steal"], "cost": 1},
 	"charged_shot": {"name": "Charged Shot", "slots": 4, "check": "atk", "power": "atk", "mult": 1.9, "kind": "phys", "perfect": ["pierce"], "cost": 1},
 	"deploy_drone": {"name": "Deploy Drone", "slots": 2, "check": "mag", "power": "", "mult": 0.0, "kind": "drone", "perfect": ["long_drone"], "cost": 1},
+	# ---- ท่าติดอาวุธ Unique (ไม่ต้องใช้ช่อง gem — ถืออาวุธก็ได้ท่าเลย ดู ITEMS "grants")
+	## drain = ฟื้น HP ตามสัดส่วนดาเมจที่ทำได้ · hp_cost = จ่าย HP (สัดส่วน Max HP) ตอนใช้ ไม่ทำให้ตาย (เหลืออย่างน้อย 1)
+	"blood_siphon": {"name": "Blood Siphon", "slots": 3, "check": "atk", "power": "atk", "mult": 1.2, "kind": "phys", "perfect": ["crit"], "cost": 0, "drain": 0.5},
+	"singularity": {"name": "Singularity", "slots": 4, "check": "mag", "power": "mag", "mult": 2.4, "kind": "magic", "perfect": ["pierce", "stun"], "cost": 2, "hp_cost": 0.1},
+	"ricochet": {"name": "Ricochet", "slots": 3, "check": "spd", "power": "atk", "mult": 1.2, "kind": "phys", "perfect": ["double"], "cost": 0},
 	"flee": {"name": "Flee", "slots": 1, "check": "spd", "power": "", "mult": 0.0, "kind": "flee", "perfect": [], "cost": 0},
 }
 const PERFECT_TEXT := {
@@ -81,11 +86,63 @@ const DRONE_TURNS := 3 ## ผ่าน 1 ช่อง
 const DRONE_TURNS_PERFECT := 5 ## ผ่านครบ
 const DRONE_DAMAGE_PER_MAG := 0.6 ## ดาเมจโดรนต่อตา = TEC คนปล่อย × ค่านี้ (ไม่สนการป้องกัน) — ปล่อยซ้ำ = รีเซ็ตจำนวนตา ไม่ซ้อน
 
-## สกิลอาชีพ (อาชีพบนบอร์ด)
+## สกิลอาชีพ (อาชีพบนบอร์ด) = Skill Gem เริ่มต้นของอาชีพนั้น
 const JOB_SKILL := {
 	"Vanguard": "heavy_blow", "Marksman": "charged_shot", "Engineer": "deploy_drone",
 	"Psion": "fireball", "Infiltrator": "twin_stab",
 }
+
+# ---------------------------------------------------------------- อาวุธ → ท่า Attack (แบบ PoE2: อาวุธเป็นตัวกำหนดการตีพื้นฐาน)
+## ITEMS ที่ type = "weapon" ใส่ "weapon_type" (ไม่ใส่ = DEFAULT_WEAPON_TYPE)
+## attack = ค่าที่ทับ ACTIONS.attack (คีย์เดียวกัน: name/slots/check/power/mult/kind/perfect)
+## ไม่มีอาวุธ / มอนสเตอร์ = ใช้ ACTIONS.attack ตามเดิม
+const DEFAULT_WEAPON_TYPE := "melee"
+const WEAPON_TYPES := {
+	"melee": {"name": "Melee", "attack": {"name": "Strike"}}, # = ACTIONS.attack: 3 ช่อง ATK, Perfect คริ
+	"heavy": {"name": "Heavy", "attack": {"name": "Cleave", "slots": 4, "mult": 1.55}},
+	"bow": {"name": "Bow", "attack": {"name": "Quick Shot", "slots": 2, "check": "spd", "mult": 1.3, "perfect": ["pierce"]}},
+	"rod": {"name": "Psi Rod", "attack": {"name": "Psi Bolt", "check": "mag", "power": "mag", "mult": 1.3, "kind": "magic"}},
+}
+
+# ---------------------------------------------------------------- Skill Gem (ท่าที่ถอดเปลี่ยนได้ 2 ช่อง)
+## คีย์ = id ท่าใน ACTIONS · price = ราคาที่ร้าน Smithy · ถือได้ GEM_SLOTS ช่อง
+## gem เริ่มต้น = ["spell", สกิลอาชีพ] (ดู default_gems)
+const GEM_SLOTS := 2
+const GEMS := {
+	"spell": {"price": 0, "desc": "Tech Attack: 2 slots, TEC. Perfect ignores resist."},
+	"heavy_blow": {"price": 160, "desc": "Breach Strike: 4 slots, ATK x1.9. Perfect stuns. Costs 1 Focus."},
+	"charged_shot": {"price": 160, "desc": "Charged Shot: 4 slots, ATK x1.9. Perfect ignores ARM. Costs 1 Focus."},
+	"deploy_drone": {"price": 180, "desc": "Deploy Drone: 2 slots, TEC. Drone hits every turn, can't be defended. Costs 1 Focus."},
+	"fireball": {"price": 180, "desc": "Mind Spike: 3 slots, TEC x1.9. Perfect ignores resist + burns. Costs 1 Focus."},
+	"twin_stab": {"price": 160, "desc": "Twin Shiv: 2 slots, SPD check, ATK x1.45. Perfect hits twice + steals credits. Costs 1 Focus."},
+}
+
+
+## รวม mods 2 ชุด (Passive + อาวุธ Unique): คีย์ลงท้าย _mult คูณกัน, ตัวเลขอื่นบวกกัน, ค่าอื่นทับ
+static func merge_mods(a: Dictionary, b: Dictionary) -> Dictionary:
+	var out := a.duplicate()
+	for k in b:
+		var v = b[k]
+		var num: bool = typeof(v) == TYPE_INT or typeof(v) == TYPE_FLOAT
+		if out.has(k) and num and (typeof(out[k]) == TYPE_INT or typeof(out[k]) == TYPE_FLOAT):
+			out[k] = out[k] * v if String(k).ends_with("_mult") else out[k] + v
+		else:
+			out[k] = v
+	return out
+
+
+## ท่า Attack ของอาวุธประเภทนี้ (ACTIONS.attack ทับด้วยค่าของประเภท)
+static func weapon_attack(weapon_type: String) -> Dictionary:
+	var out: Dictionary = ACTIONS.attack.duplicate(true)
+	out.merge(WEAPON_TYPES.get(weapon_type, WEAPON_TYPES[DEFAULT_WEAPON_TYPE]).attack.duplicate(true), true)
+	return out
+
+
+static func default_gems(job: String) -> Array:
+	var out := ["spell"]
+	if JOB_SKILL.has(job):
+		out.append(JOB_SKILL[job])
+	return out
 
 ## ไอเทมในการต่อสู้: ใช้ตอนไหนและผลอะไร กำหนดที่ GameData.ITEMS (คีย์ "battle", heal/buff/damage/poison/escape)
 

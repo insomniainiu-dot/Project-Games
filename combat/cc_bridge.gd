@@ -6,7 +6,8 @@ static func hero_config(p: PlayerStats) -> Dictionary:
 	var items := []
 	for it in p.items:
 		items.append(it)
-	return {"name": p.name, "job": p.job, "hp": p.hp, "items": items, "mods": p.passive_mods(),
+	return {"name": p.name, "job": p.job, "hp": p.hp, "items": items, "mods": p.battle_mods(),
+		"attack_def": p.weapon_attack(), "gems": Array(p.gems), "granted": p.granted_skills(),
 		"stats": {"hp": p.max_hp(), "atk": p.stat("atk"), "def": p.stat("def"), "mag": p.stat("mag"), "spd": p.stat("spd"), "lck": p.stat("lck")}}
 
 
