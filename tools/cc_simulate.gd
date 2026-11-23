@@ -1,6 +1,6 @@
 extends SceneTree
 ## Simulation ระบบต่อสู้ช่องเช็ค: ฮีโร่ (AI) ทุกอาชีพ × เลเวล × มอนสเตอร์
-##   Godot --headless --path . --script res://tools/cc_simulate.gd              # 300 ครั้งต่อช่อง (รวม 10,800)
+##   Godot --headless --path . --script res://tools/cc_simulate.gd              # 300 ครั้งต่อช่อง 
 ##   Godot --headless --path . --script res://tools/cc_simulate.gd -- 1000 7    # ครั้งต่อช่อง / seed
 ## ฮีโร่ใช้อุปกรณ์เริ่มต้น + Herb 2 ลูก (เหมือนเริ่มเกม) เริ่มด้วย HP เต็ม
 
@@ -14,18 +14,18 @@ func _init() -> void:
 	rng.seed = int(args[1]) if args.size() > 1 else 1
 	var t0 := Time.get_ticks_msec()
 	var monsters: Array = GameData.MONSTERS.keys()
-	print("\nCheck combat simulation - %d battles per cell, %d total" % [per, per * 3 * LEVELS.size() * monsters.size()])
+	print("\nCheck combat simulation - %d battles per cell, %d total" % [per, per * GameData.JOBS.size() * LEVELS.size() * monsters.size()])
 	print("cell = win%% / HP left on win / avg rounds   (run = draw or 40-round cap)\n")
-	var header := "%-14s" % "Job  Lv"
+	var header := "%-16s" % "Job  Lv"
 	for m in monsters:
 		header += "%-26s" % m
 	print(header)
 	var skill_use := {}
 	var perfects := 0
 	var checks := 0
-	for job in CCBalance.JOB_SKILL:
+	for job in GameData.JOBS:
 		for lv in LEVELS:
-			var line := "%-14s" % ("%s %d" % [job, lv])
+			var line := "%-16s" % ("%s %d" % [job, lv])
 			for m in monsters:
 				var wins := 0
 				var hp_left := 0.0

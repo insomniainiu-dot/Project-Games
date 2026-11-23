@@ -41,10 +41,21 @@ Dice Duel ยังเก็บไว้ครบที่ `res://dice_duel/` �
 |---|---|---|---|
 | Attack | 3 | ATK | Critical ×1.5 |
 | Spell | 2 | MAG | ไม่สนการลดเวท |
-| Heavy Blow (Fighter) | 4 | ATK | ศัตรูมึน ข้ามตา |
-| Fireball (Mage) | 3 | MAG | ไม่สนการลดเวท + ติดไฟ 2 ตา |
-| Twin Stab (Rogue) | 2 | SPD | ตี 2 ครั้ง + ขโมยทอง |
+| Breach Strike (Vanguard) | 4 | ATK | ศัตรูมึน ข้ามตา |
+| Charged Shot (Marksman) | 4 | ATK | ไม่สน ARM (ไม่โดนลดดาเมจ) |
+| Deploy Drone (Engineer) | 2 | TEC | โดรนอยู่ 5 ตา แทน 3 ตา |
+| Mind Spike (Psion) | 3 | TEC | ไม่สนการลด TEC + ติดไฟ 2 ตา |
+| Twin Shiv (Infiltrator) | 2 | SPD | ตี 2 ครั้ง + ขโมยทอง |
+
+- **Deploy Drone**: ไม่ตีตรง ๆ และมอนสเตอร์ป้องกันไม่ได้ ผ่าน ≥1 ช่อง = ปล่อยโดรน ยิงเองทุกต้นตาของผู้เล่น (ดาเมจ TEC × 0.6 ไม่สนการป้องกัน, มึนก็ยังยิง) ปล่อยซ้ำ = รีเซ็ตจำนวนตา ไม่ซ้อน
+- คีย์ท่าในโค้ดยังเป็นชื่อเดิม (`heavy_blow` / `fireball` / `twin_stab`) เปลี่ยนแค่ชื่อที่แสดง · Spell แสดงเป็น **Tech Attack**
+- ผู้เล่นเห็น MAG เป็น **TEC** และ DEF เป็น **ARM** (`GameData.STAT_LABELS`) แต่คีย์ในโค้ดยังเป็น `mag` / `def`
 | Guard / Item / Flee | – | – | Guard รับครึ่งเดียว, Herb ฮีล, Smoke Ball หนีแน่นอน |
+
+## Passive Tree ในการต่อสู้
+ผลพิเศษจาก Passive Tree ของผู้เล่นมาใน config `hero.mods` (สร้างโดย `CCBridge.hero_config`) แล้ว engine อ่านผ่าน `CCBattle.mod(unit, key)`
+รายการ mod และคำอธิบายอยู่ที่ `game/passive_tree.gd` — เช่น Kinetic Barrier (เกราะดูดดาเมจ), Second Chance (ทอยช่องแรกที่พลาดใหม่), Ambush (รอบแรก Attack +1 ช่อง)
+ตารางใน README นี้คือค่าพื้นฐานก่อนคิด Passive · simulation ยังไม่ได้ลงต้นให้ฮีโร่ (รอ T-065)
 
 ตัวเลขทั้งหมดอยู่ใน `cc_balance.gd`, ท่าของมอนสเตอร์อยู่ใน `cc_actions` ของ `GameData.MONSTERS`
 

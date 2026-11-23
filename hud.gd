@@ -34,7 +34,8 @@ func _init() -> void:
 func refresh(p: PlayerStats, day: int) -> void:
 	_hp_bar.max_value = p.max_hp()
 	_hp_bar.value = p.hp
-	_text.text = "%s  [%s Lv %d]\nHP %d / %d    EXP %d / %d\nATK %d  DEF %d  MAG %d  SPD %d\nGold %d    Day %d    Towns %d/%d\nWeapon: %s\nArmor: %s\nAccessory: %s\nItems: %s" % [
+	var pts := p.unspent_points()
+	_text.text = ("Passive points: %d  (click Passive)\n" % pts if pts > 0 else "") + "%s  [%s Lv %d]\nHP %d / %d    EXP %d / %d\nATK %d  ARM %d  TEC %d  SPD %d\nGold %d    Day %d    Towns %d/%d\nWeapon: %s\nArmor: %s\nAccessory: %s\nItems: %s" % [
 		p.name, p.job, p.level,
 		p.hp, p.max_hp(), p.xp, p.exp_needed(),
 		p.stat("atk"), p.stat("def"), p.stat("mag"), p.stat("spd"),

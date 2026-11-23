@@ -7,7 +7,7 @@ extends CanvasLayer
 
 signal closed
 
-const STAT_NAMES := {"hp": "Max HP", "atk": "ATK", "def": "DEF", "mag": "MAG", "spd": "SPD"}
+const STAT_NAMES := {"hp": "Max HP", "atk": "ATK", "def": "ARM", "mag": "TEC", "spd": "SPD", "lck": "LCK"}
 const COLOR_UP := Color(0.5, 1.0, 0.55)
 const COLOR_DOWN := Color(1.0, 0.5, 0.5)
 const COLOR_GOLD := Color(0.95, 0.8, 0.45)

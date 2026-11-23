@@ -20,6 +20,7 @@ func setup(state: GameState, walker: BoardWalker, events: TileEvents, piece: Wit
 	_ui.roll_requested.connect(play_turn)
 	_ui.bag_requested.connect(_open_bag)
 	_ui.equip_requested.connect(_open_equip)
+	_ui.passive_requested.connect(_open_passive)
 
 
 func play_turn() -> void:
@@ -66,6 +67,18 @@ func _open_equip() -> void:
 	_busy = true
 	_ui.set_controls_enabled(false)
 	await _ui.equip_window.open(_state.player)
+	_state.notify()
+	_busy = false
+	_ui.set_controls_enabled(true)
+
+
+## หน้าต่าง Passive Tree (ปุ่ม Passive)
+func _open_passive() -> void:
+	if _busy or _ui.is_blocked():
+		return
+	_busy = true
+	_ui.set_controls_enabled(false)
+	await _ui.passive_window.open(_state.player)
 	_state.notify()
 	_busy = false
 	_ui.set_controls_enabled(true)

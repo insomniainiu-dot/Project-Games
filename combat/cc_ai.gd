@@ -23,23 +23,25 @@ static func exchange(s: Dictionary, attacker_id: int, skill: String, focus: int,
 	var att: Dictionary = s.units[attacker_id]
 	var tgt: Dictionary = s.units[1 - attacker_id]
 	var d: Dictionary = CCBalance.ACTIONS[skill]
-	var pa := pmf(d.slots, CCBattle.chance(att.stats[d.check], focus))
+	var n := CCBattle.slots_for(s, attacker_id, skill)
+	var pa := pmf(n, CCBattle.action_chance(att, skill, focus)) # ประมาณ: ไม่คิดโบนัสช่องแรก / ทอยใหม่
 	var pd := [1.0]
 	if CCBalance.DEFENSES.has(defense):
 		pd = pmf(CCBalance.DEFENSES[defense].slots, CCBattle.defense_chance(tgt, defense, skill, def_focus))
 	var out := {"taken": 0.0, "counter": 0.0, "kill": 0.0, "perfect": 0.0}
-	for k in range(1, d.slots + 1):
+	for k in range(1, n + 1):
 		for j in pd.size():
 			var prob: float = pa[k] * pd[j]
 			var eff := CCBattle.defense_effect(tgt, att, defense if CCBalance.DEFENSES.has(defense) else "", j)
-			var dmg := CCBattle.apply_mult(CCBattle.damage_for(att, tgt, skill, k), eff.mult)
-			if k == d.slots and d.perfect.has("double"):
+			var dmg := CCBattle.apply_mult(CCBattle.damage_for(att, tgt, skill, k, n), eff.mult)
+			if k == n and d.perfect.has("double"):
 				dmg *= 2
+			dmg = maxi(0, dmg - int(tgt.get("barrier", 0)))
 			out.taken += prob * dmg
 			out.counter += prob * eff.counter
 			if dmg >= tgt.hp:
 				out.kill += prob
-			if k == d.slots and not eff.dodged:
+			if k == n and not eff.dodged:
 				out.perfect += prob
 	return out
 
@@ -53,6 +55,21 @@ static func _perfect_value(s: Dictionary, skill: String) -> float:
 		v += CCBattle.full_power(mon, "attack") * 0.5
 	if d.perfect.has("burn"):
 		v += CCBalance.BURN_TURNS * maxf(1.0, hero.stats.mag * CCBalance.BURN_DAMAGE_PER_MAG)
+	return v
+
+
+## มูลค่าคาดหวังของการปล่อยโดรน (ดาเมจรวมที่โดรนจะยิง ไม่เกิน HP ศัตรู) — โดรนเดิมยังเหลือหลายตา = ไม่คุ้มปล่อยซ้ำ
+static func drone_value(s: Dictionary, skill: String, focus: int) -> float:
+	var hero: Dictionary = s.units[CCBattle.HERO]
+	var mon: Dictionary = s.units[CCBattle.MONSTER]
+	var d: Dictionary = CCBalance.ACTIONS[skill]
+	var p := pmf(d.slots, CCBattle.action_chance(hero, skill, focus))
+	var per := float(CCBattle.drone_damage(hero))
+	var left := float(hero.get("drone", 0))
+	var v := 0.0
+	for k in range(1, d.slots + 1):
+		var turns := CCBattle.drone_turns(hero, k == d.slots and d.perfect.has("long_drone"))
+		v += p[k] * minf(float(mon.hp), maxf(0.0, turns - left) * per)
 	return v
 
 
@@ -86,11 +103,17 @@ static func choose_action(s: Dictionary) -> Dictionary:
 	for k in weights:
 		total += float(weights[k])
 	var best := {"type": "guard"}
-	var best_score := 3.0 # Guard ได้ Focus + ลดดาเมจ
+	var best_score: float = 3.0 + hero.max_hp * float(CCBattle.mod(hero, "guard_heal_pct")) / 100.0 # Guard ได้ Focus + ลดดาเมจ (+ ฮีลจาก Adrenal Surge)
 	for skill in CCBattle.skills_for(hero):
 		var cost: int = CCBalance.ACTIONS[skill].get("cost", 0)
 		for f in range(0, hero.focus - cost + 1):
 			var score := 0.0
+			if not CCBattle.defendable(skill):
+				score = drone_value(s, skill, f) - (f + cost) * FOCUS_COST
+				if score > best_score:
+					best_score = score
+					best = {"type": "skill", "skill": skill, "focus": f}
+				continue
 			for defense in weights:
 				var e := exchange(s, CCBattle.HERO, skill, f, defense, 0)
 				score += (float(weights[defense]) / total) * (e.taken - e.counter + e.kill * KILL_BONUS + e.perfect * _perfect_value(s, skill))
@@ -115,6 +138,8 @@ static func choose_defense(s: Dictionary) -> Dictionary:
 	var best := {}
 	var best_score := -INF
 	for defense in CCBalance.DEFENSES:
+		if not CCBattle.can_defend_with(hero, defense):
+			continue
 		for f in range(0, hero.focus + 1):
 			var e := exchange(s, CCBattle.MONSTER, skill, 0, defense, f)
 			var score: float = -e.taken + e.counter - e.kill * DEATH_PENALTY - f * FOCUS_COST

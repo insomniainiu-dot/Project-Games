@@ -3,7 +3,7 @@ extends RefCounted
 ## ค่าสถานะผู้เล่น: เลเวล / HP / ค่าพลัง / เงิน / ไอเทม / อุปกรณ์ / อาชีพ
 
 var name := "Witch"
-var job := "Mage"
+var job: String = GameData.START_JOB
 var level := 1
 var xp := 0
 var hp := 0
@@ -14,6 +14,7 @@ var armor := "Travel Cloak"
 var accessory := ""
 var gear: Array[String] = [] # อุปกรณ์สำรองที่มีแต่ยังไม่ได้สวม
 var towns: Array[Vector2i] = [] # เมืองที่ปลดปล่อยแล้ว
+var trees := {} # Passive Tree แยกต่ออาชีพ: อาชีพ -> Array ของ node id ที่ลงแต้มไว้ (ไม่รวมจุดเริ่ม)
 
 # ตำแหน่งบนกระดาน (เก็บที่ผู้เล่นแต่ละคน เผื่อมีหลายผู้เล่นใน Phase 2)
 var tile: Vector2i = Board.CASTLE_TILE
@@ -36,13 +37,80 @@ func _recalc_base() -> void:
 		_base[k] = j.base[k] + j.grow[k] * (level - 1)
 
 
-## ค่าพลังรวมอุปกรณ์
+## ค่าพลังรวมอุปกรณ์ + Passive Tree
 func stat(key: String) -> int:
+	return stat_with(key, allocated())
+
+
+## ค่าพลังถ้าต้น Passive เป็น nodes (ใช้ preview ในหน้า Passive)
+func stat_with(key: String, nodes: Array) -> int:
 	var v: int = _base.get(key, 0)
 	for e in [weapon, armor, accessory]:
 		if e != "":
 			v += GameData.ITEMS[e].get(key, 0)
+	v += PassiveTree.stat_bonus(nodes, key)
+	var pct: int = PassiveTree.mods(nodes).get("stat_pct." + key, 0) # Keystone เช่น Glass Mind (TEC +30%, HP -25%)
+	if pct != 0:
+		v = roundi(v * (1.0 + pct / 100.0))
 	return v
+
+
+## ผลพิเศษจาก Passive Tree (ส่งเข้าระบบต่อสู้ผ่าน CCBridge)
+func passive_mods() -> Dictionary:
+	return PassiveTree.mods(allocated())
+
+
+# ---------------------------------------------------------------- Passive Tree
+## โหนดที่ลงแต้มไว้ของอาชีพปัจจุบัน (แต่ละอาชีพจำต้นของตัวเอง)
+func allocated() -> Array:
+	return trees.get(job, [])
+
+
+## แต้มทั้งหมด = 1 ต่อเลเวล (Lv2 ขึ้นไป) — เป็นของตัวละคร ใช้ได้กับทุกอาชีพ
+func passive_points() -> int:
+	return level - 1
+
+
+func unspent_points() -> int:
+	return passive_points() - allocated().size()
+
+
+func can_allocate(id: String) -> bool:
+	return unspent_points() > 0 and PassiveTree.can_allocate(allocated(), id, job)
+
+
+func allocate(id: String) -> bool:
+	if not can_allocate(id):
+		return false
+	var a := allocated().duplicate()
+	a.append(id)
+	trees[job] = a
+	return true
+
+
+## ตั้งต้นทั้งชุด (ปุ่ม Confirm ในหน้า Passive) — ต้องต่อกันครบและแต้มพอ
+func set_tree(nodes: Array) -> bool:
+	if nodes.size() > passive_points() or not PassiveTree.is_connected_tree(nodes, job):
+		return false
+	for id in nodes:
+		if not PassiveTree.NODES.has(id) or PassiveTree.NODES[id].type == "start":
+			return false
+	trees[job] = nodes.duplicate()
+	_clamp_hp()
+	return true
+
+
+## ราคารีเซ็ตต้นที่ปราสาท: ฟรีถึง Lv5 แล้ว 10 × เลเวล
+func reset_cost() -> int:
+	return 0 if level <= GameData.FREE_RESET_LEVEL else GameData.RESET_COST_PER_LEVEL * level
+
+
+## คืนแต้มทั้งต้นของอาชีพปัจจุบัน คืนจำนวนโหนดที่คืน
+func reset_tree() -> int:
+	var n := allocated().size()
+	trees.erase(job)
+	_clamp_hp()
+	return n
 
 
 func max_hp() -> int:
@@ -64,6 +132,11 @@ func gain_exp(amount: int) -> int:
 		_recalc_base()
 		hp = min(hp + GameData.JOBS[job].grow.hp, max_hp())
 	return ups
+
+
+## ตัวคูณเงินที่ได้จากช่องกระดาน / มอนสเตอร์ ตามอาชีพ
+func gold_mult() -> float:
+	return float(GameData.JOBS[job].get("gold_mult", 1.0)) + float(passive_mods().get("gold_bonus", 0.0))
 
 
 func change_job(new_job: String) -> void:

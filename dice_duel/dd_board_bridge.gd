@@ -2,7 +2,7 @@ class_name DDBoardBridge
 ## แปลงข้อมูลบอร์ดเกม (PlayerStats / มอนสเตอร์ใน GameData) เป็นตัวละคร Dice Duel
 
 ## อาชีพบนบอร์ด → อาชีพ Dice Duel
-const JOB_MAP := {"Mage": "magician", "Fighter": "warrior", "Rogue": "thief"}
+const JOB_MAP := {"Psion": "magician", "Vanguard": "warrior", "Infiltrator": "thief", "Marksman": "ninja", "Engineer": "cleric"}
 
 
 static func player_character(p: PlayerStats) -> Dictionary:

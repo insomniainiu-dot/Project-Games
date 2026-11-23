@@ -6,14 +6,14 @@ static func hero_config(p: PlayerStats) -> Dictionary:
 	var items := []
 	for it in p.items:
 		items.append(it)
-	return {"name": p.name, "job": p.job, "hp": p.hp, "items": items,
-		"stats": {"hp": p.max_hp(), "atk": p.stat("atk"), "def": p.stat("def"), "mag": p.stat("mag"), "spd": p.stat("spd")}}
+	return {"name": p.name, "job": p.job, "hp": p.hp, "items": items, "mods": p.passive_mods(),
+		"stats": {"hp": p.max_hp(), "atk": p.stat("atk"), "def": p.stat("def"), "mag": p.stat("mag"), "spd": p.stat("spd"), "lck": p.stat("lck")}}
 
 
 static func monster_config(monster_id: String) -> Dictionary:
 	var m: Dictionary = GameData.MONSTERS[monster_id]
 	return {"name": monster_id, "gold": m.gold, "actions": m.get("cc_actions", {"attack": 1}), "defense": m.get("cc_defense", {"block": 1}),
-		"stats": {"hp": m.hp, "atk": m.atk, "def": m.def, "mag": m.mag, "spd": m.spd}}
+		"stats": {"hp": m.hp, "atk": m.atk, "def": m.def, "mag": m.mag, "spd": m.spd, "lck": m.get("lck", 0)}}
 
 
 static func config(p: PlayerStats, monster_id: String, seed: int) -> Dictionary:

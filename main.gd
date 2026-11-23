@@ -34,7 +34,9 @@ func _ready() -> void:
 	var ui := MainUI.new()
 	add_child(ui)
 	ui.build()
-	state.changed.connect(func(): ui.hud.refresh(state.player, state.day))
+	state.changed.connect(func():
+		ui.hud.refresh(state.player, state.day)
+		ui.set_passive_points(state.player.unspent_points()))
 
 	# ---- ระบบเกม
 	var shops := Shops.new()

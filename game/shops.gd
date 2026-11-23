@@ -131,5 +131,5 @@ func _compare_text(player: PlayerStats, item: String) -> String:
 		var cur := player.stat(k)
 		var nv := player.preview_stat(k, item)
 		if nv != cur:
-			parts.append("%s %d→%d" % [str(k).to_upper(), cur, nv])
+			parts.append("%s %d→%d" % [GameData.stat_label(k), cur, nv])
 	return ", ".join(parts) if not parts.is_empty() else "no stat change"

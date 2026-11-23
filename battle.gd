@@ -204,9 +204,7 @@ func _use_item_menu() -> String:
 
 
 func _victory() -> void:
-	var gold: int = mon.gold
-	if player.job == "Rogue":
-		gold = roundi(gold * 1.25)
+	var gold: int = roundi(mon.gold * player.gold_mult())
 	player.gold += gold
 	var ups := player.gain_exp(mon.exp)
 	_refresh_bars()

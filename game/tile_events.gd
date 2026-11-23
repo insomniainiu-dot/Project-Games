@@ -50,8 +50,7 @@ func land(player: PlayerStats) -> void:
 				await _dialogs.message("You found a %s, but your bag is full." % item)
 		"gold":
 			var amount := randi_range(10, 40)
-			if player.job == "Rogue":
-				amount = roundi(amount * 1.25)
+			amount = roundi(amount * player.gold_mult())
 			player.gold += amount
 			await _dialogs.message("Gold tile! You found %d Gold." % amount)
 		"trap":
@@ -127,14 +126,13 @@ func _fight_dice_duel(player: PlayerStats, monster_id: String) -> String:
 
 
 func _victory(player: PlayerStats, m: Dictionary) -> void:
-	var gold: int = m.gold
-	if player.job == "Rogue":
-		gold = roundi(gold * 1.25)
+	var gold: int = roundi(m.gold * player.gold_mult())
 	player.gold += gold
 	var ups := player.gain_exp(m.exp)
 	var text := "Victory! Got %d EXP and %d Gold." % [m.exp, gold]
 	if ups > 0:
 		text += "\nLEVEL UP! Now Lv %d." % player.level
+		text += "\n+%d Passive Point%s! Press Passive to spend." % [ups, "" if ups == 1 else "s"]
 	_state.notify()
 	await _dialogs.message(text)
 
@@ -154,7 +152,9 @@ func _defeated(player: PlayerStats) -> void:
 # ================================================================ ปราสาท / เมือง
 func _visit_castle(player: PlayerStats) -> void:
 	while true:
-		var pick := await _dialogs.choose("Welcome home to the castle.", ["Rest (full HP)", "Change Job", "Leave"])
+		var cost := player.reset_cost()
+		var reset_label := "Reset Passive Tree (%s)" % ("free" if cost == 0 else "%d Gold" % cost)
+		var pick := await _dialogs.choose("Welcome home to the castle.", ["Rest (full HP)", "Change Job", reset_label, "Leave"])
 		match pick:
 			0:
 				player.hp = player.max_hp()
@@ -166,11 +166,24 @@ func _visit_castle(player: PlayerStats) -> void:
 				for j in jobs:
 					labels.append("%s - %s%s" % [j, GameData.JOBS[j].desc, "  (current)" if j == player.job else ""])
 				labels.append("Back")
-				var j_pick := await _dialogs.choose("Choose a job. (Level is kept)", labels)
+				var j_pick := await _dialogs.choose("Choose a job. (Level is kept. Each job keeps its own Passive Tree.)", labels)
 				if j_pick < jobs.size() and jobs[j_pick] != player.job:
 					player.change_job(jobs[j_pick])
 					_state.notify()
-					await _dialogs.message("You are now a %s!" % player.job)
+					var pts := player.unspent_points()
+					await _dialogs.message("You are now a %s!%s" % [player.job, "\nYou have %d Passive Point%s to spend." % [pts, "" if pts == 1 else "s"] if pts > 0 else ""])
+			2:
+				if player.allocated().is_empty():
+					await _dialogs.message("Your %s tree is already empty." % player.job)
+				elif player.gold < cost:
+					await _dialogs.message("You need %d Gold to reset (free until Lv %d)." % [cost, GameData.FREE_RESET_LEVEL])
+				else:
+					var yes := await _dialogs.choose("Refund every %s passive node%s" % [player.job, " for %d Gold?" % cost if cost > 0 else "?"], ["Reset", "Cancel"])
+					if yes == 0:
+						player.gold -= cost
+						var n := player.reset_tree()
+						_state.notify()
+						await _dialogs.message("Refunded %d point%s. Spend them with the Passive button." % [n, "" if n == 1 else "s"])
 			_:
 				return
 

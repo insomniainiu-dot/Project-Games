@@ -10,12 +10,15 @@ extends Node
 signal roll_requested
 signal bag_requested
 signal equip_requested
+signal passive_requested
 signal _direction_picked(dir: Vector2i)
 signal _dice_done(results: Array)
 
 var hud: Hud
 var dialogs: Dialogs
 var equip_window: EquipWindow
+var passive_window: PassiveWindow
+var _passive_button: Button
 
 var _dice_label: Label
 var _steps_label: Label
@@ -48,6 +51,9 @@ func build() -> void:
 	_equip_button = _button("Equip", Vector2(304, 70), Vector2(110, 50))
 	_equip_button.pressed.connect(equip_requested.emit)
 	ui.add_child(_equip_button)
+	_passive_button = _button("Passive", Vector2(424, 70), Vector2(140, 50))
+	_passive_button.pressed.connect(passive_requested.emit)
+	ui.add_child(_passive_button)
 
 	hud = Hud.new()
 	add_child(hud)
@@ -55,6 +61,8 @@ func build() -> void:
 	add_child(dialogs)
 	equip_window = EquipWindow.new()
 	add_child(equip_window)
+	passive_window = PassiveWindow.new()
+	add_child(passive_window)
 
 	var screen := get_viewport().get_visible_rect().size
 
@@ -100,11 +108,19 @@ func set_controls_enabled(enabled: bool) -> void:
 	_roll_button.disabled = not enabled
 	_bag_button.disabled = not enabled
 	_equip_button.disabled = not enabled
+	_passive_button.disabled = not enabled
+
+
+## ปุ่ม Passive บอกแต้มที่ยังไม่ได้ใช้ (เรืองทองเมื่อมีแต้ม)
+func set_passive_points(n: int) -> void:
+	_passive_button.text = "Passive +%d" % n if n > 0 else "Passive"
+	_passive_button.modulate = Color(1.25, 1.1, 0.6) if n > 0 else Color.WHITE
+	_passive_button.custom_minimum_size.x = 170 if n > 0 else 140
 
 
 ## มีหน้าต่างอะไรเปิดบังกระดานอยู่ไหม
 func is_blocked() -> bool:
-	return dialogs.is_open() or equip_window.is_open()
+	return dialogs.is_open() or equip_window.is_open() or passive_window.is_open()
 
 
 # ================================================================ ลูกเต๋า

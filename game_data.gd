@@ -2,25 +2,54 @@ class_name GameData
 ## ข้อมูลเกมทั้งหมด (อาชีพ / ไอเทม / มอนสเตอร์ / ช่องกระดาน / เมือง)
 ## เพิ่ม-แก้ของในเกมได้ที่ไฟล์นี้ไฟล์เดียว ไม่ต้องแตะโค้ดส่วนอื่น
 
-# ---------------------------------------------------------------- อาชีพ
+# ---------------------------------------------------------------- อาชีพ (ธีม Sci-Fi, ดู docs/class_passive_design.md)
 # base = ค่าเริ่มต้นที่ Lv1, grow = ค่าที่เพิ่มต่อเลเวล
+# gold_mult (ไม่ใส่ = 1.0): ตัวคูณเงินจากช่องกระดานและมอนสเตอร์ (ระบบ board_perk เต็มอยู่ใน T-067)
+# ท่าประจำอาชีพอยู่ที่ CCBalance.JOB_SKILL
+# suggested = ลำดับโหนด Passive Tree ที่แนะนำ (ปุ่ม "Suggested" ในหน้า Passive) — จุดเริ่มของต้นดูที่ PassiveTree.NODES (job)
 const JOBS := {
-	"Mage": {
-		"desc": "Strong magic, weak body.",
-		"base": {"hp": 26, "atk": 5, "def": 4, "mag": 10, "spd": 6},
-		"grow": {"hp": 5, "atk": 1, "def": 1, "mag": 3, "spd": 1},
+	"Vanguard": {
+		"desc": "Frontline tank. Hits hard, takes hits.",
+		"base": {"hp": 34, "atk": 9, "def": 8, "mag": 2, "spd": 5, "lck": 4},
+		"grow": {"hp": 7, "atk": 3, "def": 2, "mag": 0, "spd": 1, "lck": 0},
+		"suggested": ["assault_l", "reinforced_plating", "assault_r", "adrenal_surge", "assault_out", "breacher", "assault_in", "hub"],
 	},
-	"Fighter": {
-		"desc": "Hits hard, takes hits.",
-		"base": {"hp": 34, "atk": 9, "def": 7, "mag": 2, "spd": 5},
-		"grow": {"hp": 7, "atk": 3, "def": 2, "mag": 0, "spd": 1},
+	"Marksman": {
+		"desc": "Sharpshooter. High firepower and critical hits.",
+		"base": {"hp": 28, "atk": 8, "def": 4, "mag": 3, "spd": 5, "lck": 8},
+		"grow": {"hp": 5, "atk": 2, "def": 1, "mag": 0, "spd": 1, "lck": 2},
+		"suggested": ["precision_r", "weak_point", "precision_l", "steady_aim", "precision_out", "quick_draw", "precision_in", "hub"],
 	},
-	"Rogue": {
-		"desc": "Fast, lucky with gold.",
-		"base": {"hp": 28, "atk": 7, "def": 5, "mag": 4, "spd": 10},
-		"grow": {"hp": 5, "atk": 2, "def": 1, "mag": 1, "spd": 3},
+	"Engineer": {
+		"desc": "Drone builder. Solid tech and armor.",
+		"base": {"hp": 30, "atk": 5, "def": 7, "mag": 9, "spd": 4, "lck": 3},
+		"grow": {"hp": 6, "atk": 1, "def": 2, "mag": 2, "spd": 1, "lck": 0},
+		"suggested": ["machine_l", "overclocked_drones", "machine_r", "auto_repair", "machine_out", "kinetic_barrier", "machine_in", "hub"],
+	},
+	"Psion": {
+		"desc": "Psychic. Huge tech power, fragile body.",
+		"base": {"hp": 26, "atk": 4, "def": 4, "mag": 11, "spd": 5, "lck": 4},
+		"grow": {"hp": 5, "atk": 0, "def": 1, "mag": 3, "spd": 1, "lck": 1},
+		"suggested": ["psi_l", "deep_focus", "psi_r", "plasma_feed", "psi_out", "psi_shield", "psi_in", "hub"],
+	},
+	"Infiltrator": {
+		"desc": "Fast and sneaky. Finds extra credits.",
+		"base": {"hp": 28, "atk": 6, "def": 4, "mag": 3, "spd": 9, "lck": 6},
+		"grow": {"hp": 5, "atk": 1, "def": 1, "mag": 0, "spd": 3, "lck": 1},
+		"suggested": ["shadow_l", "light_step", "shadow_r", "pickpocket", "shadow_out", "second_chance", "shadow_in", "hub"],
+		"gold_mult": 1.25,
 	},
 }
+const START_JOB := "Psion"
+const FREE_RESET_LEVEL := 5 # รีเซ็ต Passive Tree ฟรีถึงเลเวลนี้
+const RESET_COST_PER_LEVEL := 10 # หลังจากนั้นเสีย 10 × เลเวล
+
+# ชื่อค่าพลังที่ผู้เล่นเห็น (คีย์ในโค้ดยังเป็น hp/atk/def/mag/spd) · lck = อัตราคริ (CCBalance.CRIT_PER_LCK)
+const STAT_LABELS := {"hp": "HP", "atk": "ATK", "def": "ARM", "mag": "TEC", "spd": "SPD", "lck": "LCK"}
+
+
+static func stat_label(key: String) -> String:
+	return STAT_LABELS.get(key, key.to_upper())
 
 # ---------------------------------------------------------------- ไอเทม
 # type: "use" = ใช้แล้วหมดไป, "weapon"/"armor"/"accessory" = อุปกรณ์สวมใส่
@@ -30,8 +59,8 @@ const JOBS := {
 const ITEMS := {
 	"Herb": {"type": "use", "battle": "defense", "price": 15, "heal": 20, "desc": "Heal 20 HP. (Battle: defense turn)"},
 	"Big Herb": {"type": "use", "battle": "defense", "price": 40, "heal": 60, "desc": "Heal 60 HP. (Battle: defense turn)"},
-	"Power Tonic": {"type": "use", "battle": "defense", "price": 45, "buff": {"atk": 4, "mag": 4}, "desc": "ATK and MAG +4 for this battle. (Battle: defense turn)"},
-	"Iron Tonic": {"type": "use", "battle": "defense", "price": 40, "buff": {"def": 5}, "desc": "DEF +5 for this battle. (Battle: defense turn)"},
+	"Power Tonic": {"type": "use", "battle": "defense", "price": 45, "buff": {"atk": 4, "mag": 4}, "desc": "ATK and TEC +4 for this battle. (Battle: defense turn)"},
+	"Iron Tonic": {"type": "use", "battle": "defense", "price": 40, "buff": {"def": 5}, "desc": "ARM +5 for this battle. (Battle: defense turn)"},
 	"Fire Bomb": {"type": "use", "battle": "attack", "price": 35, "damage": 12, "desc": "Deal 12 damage, never misses. (Battle: attack turn)"},
 	"Poison Dart": {"type": "use", "battle": "attack", "price": 30, "poison": {"turns": 3, "damage": 4}, "desc": "Poison: 4 damage for 3 turns. (Battle: attack turn)"},
 	"Smoke Ball": {"type": "use", "battle": "any", "price": 25, "escape": true, "desc": "Escape a battle for sure. (Battle: any turn)"},
@@ -49,7 +78,7 @@ const ITEMS := {
 	"Chain Mail": {"type": "armor", "price": 180, "def": 8, "spd": -1, "desc": "Linked steel rings."},
 	"Knight Plate": {"type": "armor", "price": 300, "hp": 10, "def": 13, "spd": -2, "die_body": "heavy", "desc": "Full plate of a royal knight. (Heavy die)"},
 	# เครื่องประดับ
-	"Lucky Charm": {"type": "accessory", "price": 60, "spd": 3, "desc": "A four-leaf clover in glass."},
+	"Lucky Charm": {"type": "accessory", "price": 60, "spd": 1, "lck": 5, "desc": "A four-leaf clover in glass."},
 	"Power Ring": {"type": "accessory", "price": 100, "atk": 3, "desc": "Makes your grip stronger."},
 	"Life Pendant": {"type": "accessory", "price": 120, "hp": 15, "desc": "Warm to the touch."},
 	"Sage Earring": {"type": "accessory", "price": 140, "mag": 4, "die_rune": "twin", "desc": "Whispers old spells. (Twin rune)"},
@@ -63,7 +92,7 @@ const SMITHY_STOCK := {
 	"accessory": ["Lucky Charm", "Power Ring", "Life Pendant", "Sage Earring"],
 }
 const SLOT_NAMES := {"weapon": "Weapon", "armor": "Armor", "accessory": "Accessory"}
-const STAT_KEYS := ["hp", "atk", "def", "mag", "spd"]
+const STAT_KEYS := ["hp", "atk", "def", "mag", "spd", "lck"]
 const MAX_ITEMS := 6
 const MAX_GEAR := 8 # อุปกรณ์สำรอง (ที่ยังไม่ได้สวม) เก็บได้กี่ชิ้น
 const SELL_RATE := 0.5 # ขายคืนได้ครึ่งราคา
@@ -76,7 +105,7 @@ static func stat_text(item: String) -> String:
 	for k in STAT_KEYS:
 		var v: int = d.get(k, 0)
 		if v != 0:
-			parts.append("%s%+d" % [str(k).to_upper(), v])
+			parts.append("%s%+d" % [stat_label(k), v])
 	return " ".join(parts)
 
 
@@ -86,8 +115,7 @@ static func sell_price(item: String) -> int:
 # ---------------------------------------------------------------- มอนสเตอร์
 # sprite: ไฟล์สไปรต์ชีต (แถว 0 = หันหน้า, แถว 1 = หันซ้าย), frames = จำนวนเฟรมต่อแถว
 # cc_actions: ท่าของมอนสเตอร์ในระบบต่อสู้ช่องเช็ค {ท่า: น้ำหนักการสุ่ม} (ท่าดูใน CCBalance.ACTIONS, "guard" = ตั้งการ์ด)
-# cc_defense: วิธีป้องกันของมอนสเตอร์ตอนโดนโจมตี {block/dodge/counter: น้ำหนักการสุ่ม}
-# dd_job / dd_personality: อาชีพ (สกิล) และนิสัย AI ในระบบต่อสู้ Dice Duel (เก็บไว้ ยังไม่ได้ใช้)
+# cc_defense: วิธีป้องกันของมอนสเตอร์ตอนโดนโจมตี {block/dodge/counter: น้ำหนักการสุ่ม}# dd_job / dd_personality: อาชีพ (สกิล) และนิสัย AI ในระบบต่อสู้ Dice Duel (เก็บไว้ ยังไม่ได้ใช้)
 # offense/defense: น้ำหนักการสุ่มท่าของระบบต่อสู้เดิม (battle.gd) — Dice Duel ไม่ใช้แล้ว
 const MONSTERS := {
 	"Skeleton": {
