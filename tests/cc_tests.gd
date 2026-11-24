@@ -23,6 +23,7 @@ func _init() -> void:
 	_weapons_and_gems()
 	_uniques()
 	_tiers()
+	_save()
 	print("\nCheck combat tests: %d passed, %d failed" % [_passed, _failed])
 	quit(1 if _failed > 0 else 0)
 
@@ -258,20 +259,20 @@ func _defense_turn() -> void:
 
 func _items_and_flee() -> void:
 	section("items & flee")
-	var bag := ["Herb", "Power Tonic", "Iron Tonic", "Fire Bomb", "Poison Dart", "Smoke Ball"]
+	var bag := ["Medkit", "Stim Shot", "Armor Gel", "Plasma Grenade", "Toxin Dart", "Smoke Bomb"]
 	# ตาบุก: แฮโร่เร็วกว่า มอนสเตอร์ตีเบา
 	var atk := battle("Psion", st(40, 5, 5, 10, 8), st(200, 1, 0, 1, 5), {"guard": 1}, bag)
-	check(err(atk, {"type": "item", "item": "Herb"}), "Herb is not for the attack turn")
-	check(err(atk, {"type": "item", "item": "Power Tonic"}), "buff items are not for the attack turn")
-	check(err(atk, {"type": "item", "item": "Big Herb"}), "can't use an item you don't have")
-	var bomb := act(atk, {"type": "item", "item": "Fire Bomb"})
+	check(err(atk, {"type": "item", "item": "Medkit"}), "Herb is not for the attack turn")
+	check(err(atk, {"type": "item", "item": "Stim Shot"}), "buff items are not for the attack turn")
+	check(err(atk, {"type": "item", "item": "Big Medkit"}), "can't use an item you don't have")
+	var bomb := act(atk, {"type": "item", "item": "Plasma Grenade"})
 	var bd: Array = events(bomb, "damage")
 	check(bd.size() == 1 and bd[0].unit == CCBattle.MONSTER and bd[0].amount == 12 and bd[0].cause == "item", "Fire Bomb always deals 12")
-	check(not bomb.items.has("Fire Bomb"), "item is used up")
-	var dart := act(atk, {"type": "item", "item": "Poison Dart"})
+	check(not bomb.items.has("Plasma Grenade"), "item is used up")
+	var dart := act(atk, {"type": "item", "item": "Toxin Dart"})
 	var ticks: Array = events(dart, "damage").filter(func(e): return e.cause == "burn")
 	check(ticks.size() == 1 and ticks[0].amount == 4 and dart.units[1].burn == 2, "Poison Dart: 4 damage per turn for 3 turns")
-	eq(act(atk, {"type": "item", "item": "Smoke Ball"}).result, "run", "Smoke Ball works on the attack turn")
+	eq(act(atk, {"type": "item", "item": "Smoke Bomb"}).result, "run", "Smoke Ball works on the attack turn")
 	eq(act(battle("Psion", st(40, 5, 5, 10, 100), st(200, 1, 0, 1, 5)), {"type": "flee", "focus": 1}).result, "run", "Flee on the attack turn")
 	check(err(atk, {"type": "defend", "defense": "block", "focus": 0}), "can't defend on the attack turn")
 
@@ -279,20 +280,20 @@ func _items_and_flee() -> void:
 	var dfn := battle("Vanguard", st(400, 5, 5, 5, 1), st(200, 30, 0, 1, 9), {"attack": 1}, bag)
 	dfn.units[0].hp = 100
 	check(CCBattle.phase(dfn) == "defend", "setup: defense turn")
-	check(err(dfn, {"type": "item", "item": "Fire Bomb"}), "attack items are not for the defense turn")
-	var h := act(dfn, {"type": "item", "item": "Herb"})
+	check(err(dfn, {"type": "item", "item": "Plasma Grenade"}), "attack items are not for the defense turn")
+	var h := act(dfn, {"type": "item", "item": "Medkit"})
 	var he: Dictionary = events(h, "item")[0]
 	var taken := 0
 	for e in events(h, "damage"):
 		taken += e.amount
 	check(he.heal == 20 and h.units[0].hp == 120 - taken, "Herb heals 20 before the hit")
 	check(events(h, "check").all(func(e): return not e.get("defense", false)), "using an item gives up the defense roll")
-	var tonic := act(dfn, {"type": "item", "item": "Power Tonic"})
+	var tonic := act(dfn, {"type": "item", "item": "Stim Shot"})
 	check(tonic.units[0].stats.atk == 9 and tonic.units[0].stats.mag == 9, "Power Tonic: ATK/MAG +4 for the battle")
-	eq(act(dfn, {"type": "item", "item": "Iron Tonic"}).units[0].stats.def, 10, "Iron Tonic: DEF +5")
-	var smoke := act(dfn, {"type": "item", "item": "Smoke Ball"})
+	eq(act(dfn, {"type": "item", "item": "Armor Gel"}).units[0].stats.def, 10, "Iron Tonic: DEF +5")
+	var smoke := act(dfn, {"type": "item", "item": "Smoke Bomb"})
 	check(smoke.result == "run" and events(smoke, "damage").is_empty(), "Smoke Ball escapes before the hit")
-	var full := act(battle("Vanguard", st(40, 5, 100, 5, 1), st(200, 1, 0, 1, 9), {"attack": 1}, ["Herb"]), {"type": "item", "item": "Herb"})
+	var full := act(battle("Vanguard", st(40, 5, 100, 5, 1), st(200, 1, 0, 1, 9), {"attack": 1}, ["Medkit"]), {"type": "item", "item": "Medkit"})
 	check(full.units[0].hp <= 40, "heal can't go over max HP")
 
 	var fast := battle("Vanguard", st(400, 5, 5, 5, 60), st(200, 30, 0, 1, 100))
@@ -316,7 +317,7 @@ func _end_and_replay() -> void:
 			break
 		l = act(l, {"type": "defend", "defense": "block", "focus": 0} if CCBattle.phase(l) == "defend" else {"type": "guard"})
 	eq(l.result, "lose", "hero at 0 HP = lose")
-	var r := battle("Infiltrator", st(40, 9, 5, 6, 8), st(60, 12, 6, 8, 7), {"attack": 2, "spell": 1, "guard": 1}, ["Herb"], 77, {"block": 1, "dodge": 1, "counter": 1})
+	var r := battle("Infiltrator", st(40, 9, 5, 6, 8), st(60, 12, 6, 8, 7), {"attack": 2, "spell": 1, "guard": 1}, ["Medkit"], 77, {"block": 1, "dodge": 1, "counter": 1})
 	while r.result == "":
 		r = act(r, CCAi.choose(r))
 	check(var_to_str(CCBattle.replay(r.config, r.actions)) == var_to_str(r), "config + actions rebuild the same battle")
@@ -381,8 +382,8 @@ func _jobs() -> void:
 	eq(CCBalance.ACTIONS.heavy_blow.name, "Breach Strike", "skills use sci-fi names")
 	eq(GameData.stat_label("mag"), "TEC", "MAG shows as TEC")
 	eq(GameData.stat_label("def"), "ARM", "DEF shows as ARM")
-	eq(GameData.stat_text("Power Ring"), "ATK+3", "item stat text uses labels")
-	eq(GameData.stat_text("Sage Earring"), "TEC+4", "item stat text: TEC")
+	eq(GameData.stat_text("Servo Bracer"), "ATK+3", "item stat text uses labels")
+	eq(GameData.stat_text("Neuro Earpiece"), "TEC+4", "item stat text: TEC")
 
 
 # ================================================================ LCK / คริ (T-070)
@@ -444,7 +445,7 @@ func _weapons_and_gems() -> void:
 	for it in GameData.ITEMS:
 		if GameData.ITEMS[it].type == "weapon":
 			check(CCBalance.WEAPON_TYPES.has(GameData.weapon_type(it)), "%s has a known weapon type" % it)
-	eq(GameData.weapon_type("Herb"), "", "non-weapons have no weapon type")
+	eq(GameData.weapon_type("Medkit"), "", "non-weapons have no weapon type")
 	# ดาเมจ / โอกาสตามอาวุธ
 	var a := unit(st(30, 10, 4, 20, 9))
 	var t := unit(st(30, 0, 4, 6, 5))
@@ -479,10 +480,33 @@ func _weapons_and_gems() -> void:
 	eq(Array(p.gems), ["twin_stab", "heavy_blow"], "gem slots after swap")
 	eq(p.remove_gem(1), "heavy_blow", "remove a gem")
 	eq(CCBridge.hero_config(p).gems, ["twin_stab"], "bridge passes socketed gems")
-	eq(CCBridge.hero_config(p).attack_def.name, "Strike", "starting Oak Staff = melee Strike")
-	p.add_gear("War Axe")
-	p.equip("War Axe")
-	eq(CCBridge.hero_config(p).attack_def.slots, 4, "War Axe gives Cleave through the bridge")
+	eq(CCBridge.hero_config(p).attack_def.name, "Strike", "Vanguard's Service Baton = melee Strike")
+	p.add_gear("Gravity Hammer")
+	p.equip("Gravity Hammer")
+	eq(CCBridge.hero_config(p).attack_def.slots, 4, "Gravity Hammer gives Cleave through the bridge")
+	# อาวุธเริ่มต้นต่ออาชีพ
+	for j in GameData.JOBS:
+		var sw: String = GameData.JOBS[j].get("start_weapon", "")
+		check(GameData.item(sw).get("type", "") == "weapon" and GameData.item(sw).price == 0, "%s starts with a real, free weapon" % j)
+		var q := PlayerStats.new()
+		q.change_job(j)
+		eq(q.weapon, sw, "%s gets its own start weapon on job change" % j)
+		check(q.active_gems().has(CCBalance.JOB_SKILL[j]), "%s's job gem works with its start weapon" % j)
+	eq(PlayerStats.new().weapon, GameData.JOBS[GameData.START_JOB].start_weapon, "new player holds the start job's weapon")
+	var kept := PlayerStats.new()
+	kept.add_gear("Plasma Blade")
+	kept.equip("Plasma Blade")
+	kept.change_job("Marksman")
+	eq(kept.weapon, "Plasma Blade", "a bought weapon is kept on job change")
+	# gem ผูกประเภทอาวุธ
+	check(CCBalance.gem_fits("charged_shot", "bow") and not CCBalance.gem_fits("charged_shot", "melee"), "Charged Shot needs a Rifle")
+	check(CCBalance.gem_fits("fireball", "") and CCBalance.gem_fits("spell", "heavy"), "gems without requirements work with anything")
+	eq(CCBalance.gem_requirement_text("heavy_blow"), "needs Blade / Heavy", "requirement text")
+	eq(kept.gems.has("charged_shot"), true, "setup: Marksman socketed Charged Shot")
+	check(not kept.active_gems().has("charged_shot") and not CCBridge.hero_config(kept).gems.has("charged_shot"), "Charged Shot with a Blade is socketed but not usable in battle")
+	kept.add_gear("Pulse Rifle")
+	kept.equip("Pulse Rifle")
+	check(CCBridge.hero_config(kept).gems.has("charged_shot"), "switching to a Rifle turns it back on")
 
 
 # ================================================================ อาวุธ Unique
@@ -563,13 +587,13 @@ func _tiers() -> void:
 	section("rare / epic gear")
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 11
-	eq(ItemDB.create("Iron Blade", "common", rng), "Iron Blade", "common = plain base name")
+	eq(ItemDB.create("Plasma Blade", "common", rng), "Plasma Blade", "common = plain base name")
 	var ok_count := true
 	var ok_slots := true
 	var ok_unique := true
 	for i in 200:
 		var tier: String = ["rare", "epic"][i % 2]
-		var base: String = ["Iron Blade", "Chain Mail", "Lucky Charm"][i % 3]
+		var base: String = ["Plasma Blade", "Mesh Armor", "Lucky Chip"][i % 3]
 		var id := ItemDB.create(base, tier, rng)
 		var rec := ItemDB.record(id)
 		var r: Array = ItemDB.TIERS[tier].affixes
@@ -583,30 +607,31 @@ func _tiers() -> void:
 	check(ok_slots, "affixes only roll on slots they allow")
 	check(ok_unique, "no duplicate affix on one item")
 	# ค่ารวม
-	var id := ItemDB.register({"base": "Iron Blade", "tier": "epic", "affixes": [
+	var id := ItemDB.register({"base": "Plasma Blade", "tier": "epic", "affixes": [
 		{"id": "atk", "value": 3}, {"id": "attack_dmg", "value": 10}, {"id": "first_slot", "value": 8}]})
-	check(id.begins_with("Iron Blade#") and ItemDB.is_instance(id), "instance id = base#n")
+	check(id.begins_with("Plasma Blade#") and ItemDB.is_instance(id), "instance id = base#n")
 	var d := GameData.item(id)
-	eq(d.atk, GameData.ITEMS["Iron Blade"].atk + 3, "stat affix adds to the base stat")
+	eq(d.atk, GameData.ITEMS["Plasma Blade"].atk + 3, "stat affix adds to the base stat")
 	check(is_equal_approx(d.mods.attack_mult, 1.1) and d.mods["first_slot_bonus.attack"] == 8, "mod affixes become battle mods")
-	eq(GameData.ITEMS["Iron Blade"].get("mods", {}), {}, "base item data is untouched")
+	eq(GameData.ITEMS["Plasma Blade"].get("mods", {}), {}, "base item data is untouched")
 	eq(GameData.rarity(id), "epic", "rarity of an instance")
-	eq(GameData.display_name(id), "◆ Iron Blade (Epic)", "display name")
+	eq(GameData.display_name(id), "◆ Plasma Blade (Epic)", "display name")
 	eq(GameData.weapon_type(id), "melee", "instance keeps its weapon type")
 	eq(GameData.sell_price(id), int(roundi(110 * 2.5) * GameData.SELL_RATE), "epic sells for more")
-	check(GameData.item_lines(id).contains("+ +3 ATK") and GameData.item_lines(id).contains("Attack damage +10%"), "affix text")
+	check(GameData.item_lines(id).contains("• +3 ATK") and GameData.item_lines(id).contains("Attack damage +10%"), "affix text")
 	# PlayerStats + bridge
 	var p := PlayerStats.new()
 	var atk0 := p.stat("atk")
-	eq(p.preview_stat("atk", id), atk0 - 1 + 9, "preview a rolled weapon (Oak Staff ATK 1 -> 9)")
+	var start_atk: int = GameData.item(p.weapon).get("atk", 0)
+	eq(p.preview_stat("atk", id), atk0 - start_atk + 9, "preview a rolled weapon (start weapon -> ATK 9)")
 	p.add_gear(id)
 	p.equip(id)
 	eq(p.weapon, id, "equip by instance id")
-	eq(p.stat("atk"), atk0 - 1 + 9, "rolled stats count")
+	eq(p.stat("atk"), atk0 - start_atk + 9, "rolled stats count")
 	var cfg := CCBridge.hero_config(p)
 	check(is_equal_approx(cfg.mods.attack_mult, 1.1) and cfg.attack_def.name == "Strike", "affix mods + weapon attack reach the battle")
-	eq(p.preview_remove_stat("atk", "weapon"), atk0 - 1, "preview removing it")
-	var id2 := ItemDB.register({"base": "Iron Blade", "tier": "rare", "affixes": [{"id": "atk", "value": 1}]})
+	eq(p.preview_remove_stat("atk", "weapon"), atk0 - start_atk, "preview removing it")
+	var id2 := ItemDB.register({"base": "Plasma Blade", "tier": "rare", "affixes": [{"id": "atk", "value": 1}]})
 	p.add_gear(id2)
 	check(p.owns(id) and p.owns(id2) and id != id2, "two rolled copies of the same base are separate items")
 	# ดรอป
@@ -617,6 +642,58 @@ func _tiers() -> void:
 	# Dice Duel ยังอ่านอุปกรณ์ได้
 	var c := DDBoardBridge.player_character(p)
 	check(c.dice.size() > 0, "Dice Duel bridge reads rolled gear")
+
+
+# ================================================================ เซฟ / โหลด
+func _save() -> void:
+	section("save / load")
+	var path := "user://test_save.json"
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 21
+	var s := GameState.new()
+	var p := s.player
+	p.change_job("Engineer")
+	p.gain_exp(500)
+	p.gold = 777
+	p.items.assign(["Medkit", "Plasma Grenade"])
+	var epic := ItemDB.create("Mesh Armor", "epic", rng)
+	var rare := ItemDB.create("Plasma Blade", "rare", rng)
+	p.add_gear(epic)
+	p.equip(epic)
+	p.add_gear(rare)
+	p.add_gear("Voidreaver")
+	p.add_gem("fireball")
+	p.towns.append(GameData.TOWNS.keys()[0])
+	p.tile = Vector2i(3, 5)
+	p.allocate(PassiveTree.NODES.keys().filter(func(k): return p.can_allocate(k))[0])
+	p.hp = 20
+	s.day = 9
+	var want := var_to_str(p.to_dict())
+	var want_epic := ItemDB.record(epic)
+	check(SaveGame.save(s, path), "save writes the file")
+	eq(SaveGame.saved_day(path), 9, "saved day readable for the Continue button")
+	# จำลองเปิดเกมใหม่: ล้างข้อมูล Rare/Epic ในหน่วยความจำ
+	ItemDB._instances.clear()
+	var s2 := GameState.new()
+	check(SaveGame.load_into(s2, path), "load succeeds")
+	eq(var_to_str(s2.player.to_dict()), want, "every player field round-trips")
+	eq(s2.day, 9, "day round-trips")
+	eq(ItemDB.record(epic), want_epic, "rolled Epic affixes are restored with the same id")
+	eq(s2.player.stat("def"), p.stat("def"), "restored gear gives the same stats")
+	eq(s2.player.towns, p.towns, "freed towns round-trip (Vector2i)")
+	var fresh := ItemDB.create("Plasma Blade", "rare", rng)
+	check(fresh != epic and fresh != rare, "new rolls after loading don't reuse saved ids")
+	# ไฟล์เสีย / ไอเทมที่ไม่รู้จัก
+	var bad := GameState.new()
+	check(not SaveGame.apply(bad, {"version": 999, "player": {}}), "other save versions are refused")
+	var d := SaveGame.to_dict(s)
+	d.player.weapon = "Removed Sword"
+	d.player.gear.append("Old Thing")
+	var s3 := GameState.new()
+	check(SaveGame.apply(s3, d), "save with unknown items still loads")
+	check(s3.player.weapon == "" and not s3.player.gear.has("Old Thing"), "unknown items are dropped instead of crashing")
+	SaveGame.delete(path)
+	check(not SaveGame.has_save(path), "delete removes the file")
 
 
 # ================================================================ Passive mods (T-062)
@@ -712,7 +789,7 @@ func _passive_mods() -> void:
 	var fb := act(mb("Psion", st(30, 5, 5, 100, 8), st(1000, 1, 0, 9, 5), {"burn_turns": 1, "poison_bonus": 1}), {"type": "skill", "skill": "fireball", "focus": 1})
 	var burn_ticks: Array = events(fb, "damage").filter(func(e): return e.cause == "burn")
 	check(burn_ticks.size() == 1 and burn_ticks[0].amount == 51 and fb.units[1].burn == CCBalance.BURN_TURNS + 1 - 1, "Plasma Feed +1 turn, Toxic Mind +1 damage")
-	var dart := act(mb("Psion", st(40, 5, 5, 10, 8), st(200, 1, 0, 1, 5), {"poison_bonus": 1}, {"guard": 1}, 1, NO_DEF, ["Poison Dart"]), {"type": "item", "item": "Poison Dart"})
+	var dart := act(mb("Psion", st(40, 5, 5, 10, 8), st(200, 1, 0, 1, 5), {"poison_bonus": 1}, {"guard": 1}, 1, NO_DEF, ["Toxin Dart"]), {"type": "item", "item": "Toxin Dart"})
 	check(events(dart, "damage").filter(func(e): return e.cause == "burn")[0].amount == 5, "Toxic Mind: Poison Dart +1 damage")
 	var amb := mb("Vanguard", st(30, 100, 5, 5, 8), st(500, 1, 0, 1, 5), {"first_turn_attack_slots": 1})
 	eq(CCBattle.slots_for(amb, CCBattle.HERO, "attack"), 4, "Ambush: Attack has 4 slots in round 1")

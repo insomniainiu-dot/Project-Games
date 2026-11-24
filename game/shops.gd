@@ -81,7 +81,8 @@ func _smithy_buy_gems(player: PlayerStats) -> void:
 	while true:
 		var labels: Array = []
 		for g in stock:
-			labels.append("%s  %dG%s" % [GameData.gem_name(g), CCBalance.GEMS[g].price, "   (owned)" if player.owns_gem(g) else ""])
+			var req := CCBalance.gem_requirement_text(g)
+			labels.append("%s  %dG%s%s" % [GameData.gem_name(g), CCBalance.GEMS[g].price, "   (%s)" % req if req != "" else "", "   (owned)" if player.owns_gem(g) else ""])
 		labels.append("Back")
 		var pick := await _dialogs.choose("Skill Gems - Gold %d\nGems are moves you can swap in the Equip window (2 slots)." % player.gold, labels)
 		if pick >= stock.size():

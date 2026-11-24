@@ -42,7 +42,7 @@ func refresh(p: PlayerStats, day: int) -> void:
 		p.stat("atk"), p.stat("def"), p.stat("mag"), p.stat("spd"),
 		p.gold, day, p.towns.size(), GameData.TOWNS.size(),
 		_or_dash(GameData.display_name(p.weapon)), _or_dash(GameData.display_name(p.armor)), _or_dash(GameData.display_name(p.accessory)),
-		", ".join(PackedStringArray(p.gems.map(func(g): return GameData.gem_name(g)))) if not p.gems.is_empty() else "-",
+		", ".join(PackedStringArray(p.gems.map(func(g): return GameData.gem_name(g) + ("" if p.gem_fits_weapon(g) else " (x)")))) if not p.gems.is_empty() else "-",
 		", ".join(PackedStringArray(p.items)) if not p.items.is_empty() else "-",
 	]
 

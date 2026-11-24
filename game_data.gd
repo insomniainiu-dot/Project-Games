@@ -6,36 +6,42 @@ class_name GameData
 # base = ค่าเริ่มต้นที่ Lv1, grow = ค่าที่เพิ่มต่อเลเวล
 # gold_mult (ไม่ใส่ = 1.0): ตัวคูณเงินจากช่องกระดานและมอนสเตอร์ (ระบบ board_perk เต็มอยู่ใน T-067)
 # ท่าประจำอาชีพอยู่ที่ CCBalance.JOB_SKILL
+# start_weapon = อาวุธเริ่มต้น (เปลี่ยนอาชีพแล้วยังถืออาวุธเริ่มต้นเดิมอยู่ = สลับเป็นของอาชีพใหม่ให้)
 # suggested = ลำดับโหนด Passive Tree ที่แนะนำ (ปุ่ม "Suggested" ในหน้า Passive) — จุดเริ่มของต้นดูที่ PassiveTree.NODES (job)
 const JOBS := {
 	"Vanguard": {
 		"desc": "Frontline tank. Hits hard, takes hits.",
 		"base": {"hp": 34, "atk": 9, "def": 8, "mag": 2, "spd": 5, "lck": 4},
 		"grow": {"hp": 7, "atk": 3, "def": 2, "mag": 0, "spd": 1, "lck": 0},
+		"start_weapon": "Service Baton",
 		"suggested": ["assault_l", "reinforced_plating", "assault_r", "adrenal_surge", "assault_out", "breacher", "assault_in", "hub"],
 	},
 	"Marksman": {
 		"desc": "Sharpshooter. High firepower and critical hits.",
 		"base": {"hp": 28, "atk": 8, "def": 4, "mag": 3, "spd": 5, "lck": 8},
 		"grow": {"hp": 5, "atk": 2, "def": 1, "mag": 0, "spd": 1, "lck": 2},
+		"start_weapon": "Training Carbine",
 		"suggested": ["precision_r", "weak_point", "precision_l", "steady_aim", "precision_out", "quick_draw", "precision_in", "hub"],
 	},
 	"Engineer": {
 		"desc": "Drone builder. Solid tech and armor.",
 		"base": {"hp": 30, "atk": 5, "def": 7, "mag": 9, "spd": 4, "lck": 3},
 		"grow": {"hp": 6, "atk": 1, "def": 2, "mag": 2, "spd": 1, "lck": 0},
+		"start_weapon": "Utility Rod",
 		"suggested": ["machine_l", "overclocked_drones", "machine_r", "auto_repair", "machine_out", "kinetic_barrier", "machine_in", "hub"],
 	},
 	"Psion": {
 		"desc": "Psychic. Huge tech power, fragile body.",
 		"base": {"hp": 26, "atk": 4, "def": 4, "mag": 11, "spd": 5, "lck": 4},
 		"grow": {"hp": 5, "atk": 0, "def": 1, "mag": 3, "spd": 1, "lck": 1},
+		"start_weapon": "Focus Rod",
 		"suggested": ["psi_l", "deep_focus", "psi_r", "plasma_feed", "psi_out", "psi_shield", "psi_in", "hub"],
 	},
 	"Infiltrator": {
 		"desc": "Fast and sneaky. Finds extra credits.",
 		"base": {"hp": 28, "atk": 6, "def": 4, "mag": 3, "spd": 9, "lck": 6},
 		"grow": {"hp": 5, "atk": 1, "def": 1, "mag": 0, "spd": 3, "lck": 1},
+		"start_weapon": "Combat Knife",
 		"suggested": ["shadow_l", "light_step", "shadow_r", "pickpocket", "shadow_out", "second_chance", "shadow_in", "hub"],
 		"gold_mult": 1.25,
 	},
@@ -57,20 +63,25 @@ static func stat_label(key: String) -> String:
 #   ผลในการต่อสู้: heal / buff {สเตตัส: +ค่า} (ตลอดการต่อสู้นั้น) / damage (โดนแน่นอน) / poison {turns, damage} / escape
 # die_body / die_rune (ไม่ใส่ก็ได้): ใน Dice Duel เต๋าลูกของช่องนั้น (อาวุธ=ลูก 1, เกราะ=ลูก 2, เครื่องประดับ=ลูก 3) ได้ Body/Rune นี้
 const ITEMS := {
-	"Herb": {"type": "use", "battle": "defense", "price": 15, "heal": 20, "desc": "Heal 20 HP. (Battle: defense turn)"},
-	"Big Herb": {"type": "use", "battle": "defense", "price": 40, "heal": 60, "desc": "Heal 60 HP. (Battle: defense turn)"},
-	"Power Tonic": {"type": "use", "battle": "defense", "price": 45, "buff": {"atk": 4, "mag": 4}, "desc": "ATK and TEC +4 for this battle. (Battle: defense turn)"},
-	"Iron Tonic": {"type": "use", "battle": "defense", "price": 40, "buff": {"def": 5}, "desc": "ARM +5 for this battle. (Battle: defense turn)"},
-	"Fire Bomb": {"type": "use", "battle": "attack", "price": 35, "damage": 12, "desc": "Deal 12 damage, never misses. (Battle: attack turn)"},
-	"Poison Dart": {"type": "use", "battle": "attack", "price": 30, "poison": {"turns": 3, "damage": 4}, "desc": "Poison: 4 damage for 3 turns. (Battle: attack turn)"},
-	"Smoke Ball": {"type": "use", "battle": "any", "price": 25, "escape": true, "desc": "Escape a battle for sure. (Battle: any turn)"},
+	"Medkit": {"type": "use", "battle": "defense", "price": 15, "heal": 20, "desc": "Heal 20 HP. (Battle: defense turn)"},
+	"Big Medkit": {"type": "use", "battle": "defense", "price": 40, "heal": 60, "desc": "Heal 60 HP. (Battle: defense turn)"},
+	"Stim Shot": {"type": "use", "battle": "defense", "price": 45, "buff": {"atk": 4, "mag": 4}, "desc": "ATK and TEC +4 for this battle. (Battle: defense turn)"},
+	"Armor Gel": {"type": "use", "battle": "defense", "price": 40, "buff": {"def": 5}, "desc": "ARM +5 for this battle. (Battle: defense turn)"},
+	"Plasma Grenade": {"type": "use", "battle": "attack", "price": 35, "damage": 12, "desc": "Deal 12 damage, never misses. (Battle: attack turn)"},
+	"Toxin Dart": {"type": "use", "battle": "attack", "price": 30, "poison": {"turns": 3, "damage": 4}, "desc": "Poison: 4 damage for 3 turns. (Battle: attack turn)"},
+	"Smoke Bomb": {"type": "use", "battle": "any", "price": 25, "escape": true, "desc": "Escape a battle for sure. (Battle: any turn)"},
 	# อาวุธ — weapon_type กำหนดท่า Attack (CCBalance.WEAPON_TYPES)
-	"Oak Staff": {"type": "weapon", "weapon_type": "melee", "price": 0, "atk": 1, "mag": 2, "desc": "A plain staff."},
-	"Moon Rod": {"type": "weapon", "weapon_type": "rod", "price": 90, "atk": 2, "mag": 6, "desc": "A rod that glows under the moon."},
-	"Iron Blade": {"type": "weapon", "weapon_type": "melee", "price": 110, "atk": 6, "desc": "A sturdy iron sword."},
-	"Hunter Bow": {"type": "weapon", "weapon_type": "bow", "price": 150, "atk": 6, "spd": 3, "die_body": "quick", "desc": "Light and quick. (Quick die)"},
-	"Sun Staff": {"type": "weapon", "weapon_type": "rod", "price": 220, "atk": 3, "mag": 10, "die_rune": "spark", "desc": "Burns with solar magic. (Spark rune)"},
-	"War Axe": {"type": "weapon", "weapon_type": "heavy", "price": 260, "atk": 9, "spd": -2, "die_body": "heavy", "desc": "Heavy, but hits like a cart. (Heavy die)"},
+	# อาวุธเริ่มต้นของแต่ละอาชีพ (JOBS "start_weapon") ราคา 0 ไม่ขายในร้าน · ค่าพลังรวม 3 เท่ากันทุกชิ้น
+	"Service Baton": {"type": "weapon", "weapon_type": "melee", "price": 0, "atk": 3, "desc": "Standard-issue shock baton."},
+	"Training Carbine": {"type": "weapon", "weapon_type": "bow", "price": 0, "atk": 2, "spd": 1, "desc": "A cadet's practice rifle."},
+	"Utility Rod": {"type": "weapon", "weapon_type": "rod", "price": 0, "atk": 1, "mag": 2, "desc": "A multitool that doubles as a tech focus."},
+	"Focus Rod": {"type": "weapon", "weapon_type": "rod", "price": 0, "mag": 3, "desc": "A simple psionic amplifier."},
+	"Combat Knife": {"type": "weapon", "weapon_type": "melee", "price": 0, "atk": 2, "spd": 1, "desc": "Small, quiet, always within reach."},
+	"Ion Rod": {"type": "weapon", "weapon_type": "rod", "price": 90, "atk": 2, "mag": 6, "desc": "Hums with charged particles."},
+	"Plasma Blade": {"type": "weapon", "weapon_type": "melee", "price": 110, "atk": 6, "desc": "A sturdy blade with a heated edge."},
+	"Pulse Rifle": {"type": "weapon", "weapon_type": "bow", "price": 150, "atk": 6, "spd": 3, "die_body": "quick", "desc": "Light and quick. (Quick die)"},
+	"Solar Lance": {"type": "weapon", "weapon_type": "rod", "price": 220, "atk": 3, "mag": 10, "die_rune": "spark", "desc": "Channels focused starlight. (Spark rune)"},
+	"Gravity Hammer": {"type": "weapon", "weapon_type": "heavy", "price": 260, "atk": 9, "spd": -2, "die_body": "heavy", "desc": "Heavy, but hits like a cargo hauler. (Heavy die)"},
 	# อาวุธ Unique: ค่าตายตัว มีข้อดี + ข้อเสีย — ไม่ขายในร้าน ได้จากมอนสเตอร์ (MONSTERS "unique_chance")
 	#   mods = ผลพิเศษ (คีย์เดียวกับ PassiveTree mods รวมด้วย CCBalance.merge_mods)
 	#   grants = ท่าติดอาวุธ (ใช้ได้เลยโดยไม่กินช่อง gem) · pros / cons = ข้อความที่ผู้เล่นเห็น
@@ -88,27 +99,53 @@ const ITEMS := {
 		"grants": "ricochet",
 		"pros": ["Grants Ricochet: 3 slots, SPD check, Perfect hits twice", "SPD +4, LCK +4"], "cons": ["ARM -3"], "desc": "Every shot finds a second target. Usually the same one."},
 	"Warden's Bulwark": {"type": "weapon", "weapon_type": "melee", "rarity": "unique", "price": 400, "atk": 3, "def": 6, "hp": 15,
-		"mods": {"start_barrier": 10, "guard_heal_pct": 8, "attack_mult": 0.7},
-		"pros": ["Start each battle with a 10 Barrier", "Guard heals 8% max HP", "ARM +6, HP +15"], "cons": ["Attack damage x0.7"], "desc": "A riot shield with a stun baton bolted on."},
+		"mods": {"start_barrier": 14, "attack_mult": 0.8},
+		"pros": ["Start each battle with a 14 Barrier", "ARM +6, HP +15"], "cons": ["Attack damage x0.8"], "desc": "A riot shield with a stun baton bolted on."},
 	# ชุดเกราะ
-	"Travel Cloak": {"type": "armor", "price": 0, "def": 1, "desc": "A worn cloak."},
-	"Leather Vest": {"type": "armor", "price": 70, "def": 4, "desc": "Simple leather protection."},
-	"Rune Robe": {"type": "armor", "price": 120, "def": 3, "mag": 3, "spd": 1, "desc": "Stitched with runes."},
-	"Chain Mail": {"type": "armor", "price": 180, "def": 8, "spd": -1, "desc": "Linked steel rings."},
-	"Knight Plate": {"type": "armor", "price": 300, "hp": 10, "def": 13, "spd": -2, "die_body": "heavy", "desc": "Full plate of a royal knight. (Heavy die)"},
+	"Flight Suit": {"type": "armor", "price": 0, "def": 1, "desc": "A worn pilot's jumpsuit."},
+	"Kevlar Vest": {"type": "armor", "price": 70, "def": 4, "desc": "Simple ballistic protection."},
+	"Psi Weave": {"type": "armor", "price": 120, "def": 3, "mag": 3, "spd": 1, "desc": "Fabric woven with psionic circuitry."},
+	"Mesh Armor": {"type": "armor", "price": 180, "def": 8, "spd": -1, "desc": "Interlocking alloy mesh."},
+	"Exo Frame": {"type": "armor", "price": 300, "hp": 10, "def": 13, "spd": -2, "die_body": "heavy", "desc": "A powered exoskeleton. (Heavy die)"},
+	# เกราะ Unique
+	"Reactive Plating": {"type": "armor", "rarity": "unique", "price": 380, "def": 11,
+		"mods": {"block_cut": 0.35, "counter_mult": 1.1, "dodge_penalty": -35},
+		"pros": ["Block cuts 35% per slot (was 30%)", "Counter hits back with ATK x1.1 (was x0.8)"], "cons": ["Dodge chance -35% (was -20%)"],
+		"desc": "Plates that punch back when struck."},
+	"Phase Cloak": {"type": "armor", "rarity": "unique", "price": 380, "def": 6, "spd": 3,
+		"mods": {"dodge_penalty": 0, "first_strike": true, "stat_pct.hp": -15},
+		"pros": ["Dodge has no penalty", "Always act first in round 1", "SPD +3"], "cons": ["Max HP -15%"],
+		"desc": "Shifts you a few millimetres out of phase."},
+	"Overclock Rig": {"type": "armor", "rarity": "unique", "price": 400, "def": 8, "mag": 5,
+		"mods": {"start_focus": 1, "imperfect_mult": 0.9},
+		"pros": ["Start battles with +1 Focus", "ARM +8, TEC +5"], "cons": ["Every non-Perfect hit deals x0.9"],
+		"desc": "Runs your nervous system past spec."},
 	# เครื่องประดับ
-	"Lucky Charm": {"type": "accessory", "price": 60, "spd": 1, "lck": 5, "desc": "A four-leaf clover in glass."},
-	"Power Ring": {"type": "accessory", "price": 100, "atk": 3, "desc": "Makes your grip stronger."},
-	"Life Pendant": {"type": "accessory", "price": 120, "hp": 15, "desc": "Warm to the touch."},
-	"Sage Earring": {"type": "accessory", "price": 140, "mag": 4, "die_rune": "twin", "desc": "Whispers old spells. (Twin rune)"},
+	"Lucky Chip": {"type": "accessory", "price": 60, "spd": 1, "lck": 5, "desc": "A glitched casino chip that always lands right."},
+	"Servo Bracer": {"type": "accessory", "price": 100, "atk": 3, "desc": "Motorized grip assist."},
+	"Med Implant": {"type": "accessory", "price": 120, "hp": 15, "desc": "Keeps your vitals topped up."},
+	"Neuro Earpiece": {"type": "accessory", "price": 140, "mag": 4, "die_rune": "twin", "desc": "Whispers tactical data. (Twin rune)"},
+	# เครื่องประดับ Unique
+	"Gambler's Die": {"type": "accessory", "rarity": "unique", "price": 350, "lck": 10,
+		"mods": {"perfect_mult": 1.4, "imperfect_mult": 0.8},
+		"pros": ["Perfect hits deal x1.4", "LCK +10"], "cons": ["Every non-Perfect hit deals x0.8"],
+		"desc": "Loaded. Nobody knows which way."},
+	"Drone Uplink": {"type": "accessory", "rarity": "unique", "price": 380, "mag": 5, "atk": -2,
+		"mods": {"drone_turns": 1, "drone_mult": 1.3}, "grants": "deploy_drone",
+		"pros": ["Grants Deploy Drone (works for any job)", "Drones last +1 turn and hit x1.3", "TEC +5"], "cons": ["ATK -2"],
+		"desc": "A pocket hangar on your wrist."},
+	"Lazarus Chip": {"type": "accessory", "rarity": "unique", "price": 380, "lck": -3,
+		"mods": {"reroll_first_fail": 1, "regen": 3, "stat_pct.hp": -10},
+		"pros": ["Re-roll your first failed slot each battle", "Regenerate 3 HP per turn"], "cons": ["Max HP -10%", "LCK -3"],
+		"desc": "Restarts your heart. Sometimes twice."},
 }
 
-const ITEM_SHOP_STOCK := ["Herb", "Big Herb", "Power Tonic", "Iron Tonic", "Fire Bomb", "Poison Dart", "Smoke Ball"] # ร้านไอเทม (ช่อง Shop)
+const ITEM_SHOP_STOCK := ["Medkit", "Big Medkit", "Stim Shot", "Armor Gel", "Plasma Grenade", "Toxin Dart", "Smoke Bomb"] # ร้านไอเทม (ช่อง Shop)
 # ร้านอาวุธ (บ้านข้างปราสาท / ช่อง Smithy) แยกตามหมวด
 const SMITHY_STOCK := {
-	"weapon": ["Moon Rod", "Iron Blade", "Hunter Bow", "Sun Staff", "War Axe"],
-	"armor": ["Leather Vest", "Rune Robe", "Chain Mail", "Knight Plate"],
-	"accessory": ["Lucky Charm", "Power Ring", "Life Pendant", "Sage Earring"],
+	"weapon": ["Ion Rod", "Plasma Blade", "Pulse Rifle", "Solar Lance", "Gravity Hammer"],
+	"armor": ["Kevlar Vest", "Psi Weave", "Mesh Armor", "Exo Frame"],
+	"accessory": ["Lucky Chip", "Servo Bracer", "Med Implant", "Neuro Earpiece"],
 }
 const SLOT_NAMES := {"weapon": "Weapon", "armor": "Armor", "accessory": "Accessory"}
 const STAT_KEYS := ["hp", "atk", "def", "mag", "spd", "lck"]
@@ -188,7 +225,7 @@ static func item_lines(item_id: String) -> String:
 			lines.append("- " + c)
 	else:
 		for a in ItemDB.affix_lines(item_id):
-			lines.append("+ " + a)
+			lines.append("• " + a)
 	return "\n".join(lines)
 
 # ---------------------------------------------------------------- มอนสเตอร์

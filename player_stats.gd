@@ -8,9 +8,9 @@ var level := 1
 var xp := 0
 var hp := 0
 var gold := 50
-var items: Array[String] = ["Herb", "Herb"]
-var weapon := "Oak Staff"
-var armor := "Travel Cloak"
+var items: Array[String] = ["Medkit", "Medkit"]
+var weapon: String = GameData.JOBS[GameData.START_JOB].start_weapon
+var armor := "Flight Suit"
 var accessory := ""
 var gear: Array[String] = [] # อุปกรณ์สำรองที่มีแต่ยังไม่ได้สวม
 var gems: Array[String] = [] # Skill Gem ที่ใส่อยู่ (สูงสุด CCBalance.GEM_SLOTS) — ท่า Attack มาจากอาวุธ
@@ -170,6 +170,10 @@ func gold_mult() -> float:
 func change_job(new_job: String) -> void:
 	var old_gem: String = CCBalance.JOB_SKILL.get(job, "")
 	var new_gem: String = CCBalance.JOB_SKILL.get(new_job, "")
+	# ยังถืออาวุธเริ่มต้นของอาชีพเดิม = สลับเป็นอาวุธเริ่มต้นของอาชีพใหม่ (ของเริ่มต้นราคา 0 ไม่เก็บไว้)
+	if weapon == GameData.JOBS[job].get("start_weapon", "") or weapon == "":
+		gear.erase(GameData.JOBS[new_job].start_weapon)
+		weapon = GameData.JOBS[new_job].start_weapon
 	job = new_job
 	_recalc_base()
 	hp = min(hp, max_hp())
@@ -187,6 +191,16 @@ func change_job(new_job: String) -> void:
 
 
 # ---------------------------------------------------------------- Skill Gem
+## gem ที่ใส่อยู่และใช้กับอาวุธที่ถือได้ (ส่งเข้าการต่อสู้) — gem ที่ไม่เข้ากับอาวุธยังอยู่ในช่องแต่ใช้ไม่ได้
+func active_gems() -> Array:
+	var wt := GameData.weapon_type(weapon)
+	return Array(gems).filter(func(g): return CCBalance.gem_fits(g, wt))
+
+
+func gem_fits_weapon(gem: String) -> bool:
+	return CCBalance.gem_fits(gem, GameData.weapon_type(weapon))
+
+
 func owns_gem(gem: String) -> bool:
 	return gems.has(gem) or gem_bag.has(gem)
 
@@ -291,6 +305,15 @@ func preview_remove_stat(key: String, slot: String) -> int:
 	return v
 
 
+## อุปกรณ์ทั้งหมดที่มี (สวม + กระเป๋า)
+func all_gear() -> Array:
+	var out: Array = gear.duplicate() # Array(gear) ไม่ copy — ต่อของเข้า gear จริงเลย
+	for e in [weapon, armor, accessory]:
+		if e != "":
+			out.append(e)
+	return out
+
+
 func owns(item: String) -> bool:
 	return gear.has(item) or item == weapon or item == armor or item == accessory
 
@@ -323,6 +346,49 @@ func unequip(slot: String) -> bool:
 	gear.append(cur)
 	_clamp_hp()
 	return true
+
+
+# ---------------------------------------------------------------- เซฟ / โหลด (SaveGame)
+func to_dict() -> Dictionary:
+	var town_list := []
+	for t in towns:
+		town_list.append([t.x, t.y])
+	return {"name": name, "job": job, "level": level, "xp": xp, "hp": hp, "gold": gold,
+		"items": items.duplicate(), "weapon": weapon, "armor": armor, "accessory": accessory,
+		"gear": gear.duplicate(), "gems": gems.duplicate(), "gem_bag": gem_bag.duplicate(),
+		"towns": town_list, "trees": trees.duplicate(true),
+		"tile": [tile.x, tile.y], "came_from": [came_from.x, came_from.y]}
+
+
+## เขียนทับค่าด้วยข้อมูลเซฟ (ค่าที่ไม่มีในเซฟคงเดิม)
+func from_dict(d: Dictionary) -> void:
+	name = d.get("name", name)
+	job = d.get("job", job) if GameData.JOBS.has(d.get("job", "")) else job
+	level = int(d.get("level", level))
+	xp = int(d.get("xp", xp))
+	gold = int(d.get("gold", gold))
+	# ไอเทมที่ไม่รู้จักแล้ว (เปลี่ยนชื่อ/ลบออกจากเกม) ถูกทิ้ง ไม่ให้เกม crash
+	var known := func(id): return not GameData.item(str(id)).is_empty()
+	items.assign(d.get("items", items).filter(known))
+	weapon = d.get("weapon", weapon) if d.get("weapon", "") == "" or known.call(d.weapon) else ""
+	armor = d.get("armor", armor) if d.get("armor", "") == "" or known.call(d.armor) else ""
+	accessory = d.get("accessory", accessory) if d.get("accessory", "") == "" or known.call(d.accessory) else ""
+	gear.assign(d.get("gear", gear).filter(known))
+	gems.assign(CCBattle.clean_gems(d.get("gems", gems)))
+	gem_bag.assign(d.get("gem_bag", gem_bag).filter(func(g): return CCBalance.GEMS.has(g)))
+	towns.clear()
+	for t in d.get("towns", []):
+		towns.append(Vector2i(int(t[0]), int(t[1])))
+	trees = {}
+	var tr: Dictionary = d.get("trees", {})
+	for j in tr:
+		trees[j] = Array(tr[j])
+	if d.has("tile"):
+		tile = Vector2i(int(d.tile[0]), int(d.tile[1]))
+	if d.has("came_from"):
+		came_from = Vector2i(int(d.came_from[0]), int(d.came_from[1]))
+	_recalc_base()
+	hp = clampi(int(d.get("hp", hp)), 1, max_hp())
 
 
 func _clamp_hp() -> void:

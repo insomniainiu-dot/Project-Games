@@ -2,11 +2,11 @@ extends SceneTree
 ## Simulation ระบบต่อสู้ช่องเช็ค: ฮีโร่ (AI) ทุกอาชีพ × เลเวล × มอนสเตอร์
 ##   Godot --headless --path . --script res://tools/cc_simulate.gd              # 300 ครั้งต่อช่อง 
 ##   Godot --headless --path . --script res://tools/cc_simulate.gd -- 1000 7    # ครั้งต่อช่อง / seed
-## ฮีโร่ใช้อุปกรณ์เริ่มต้น + Herb 2 ลูก (เหมือนเริ่มเกม) เริ่มด้วย HP เต็ม
+## ฮีโร่ใช้อุปกรณ์เริ่มต้น + Medkit 2 อัน (เหมือนเริ่มเกม) เริ่มด้วย HP เต็ม
 
 const LEVELS := [1, 3, 5]
 ##   ... -- 300 1 "Voidreaver"        # อาร์กิวเมนต์ที่ 3 = อุปกรณ์ที่ฮีโร่สวม (เทียบอาวุธ/Unique)
-##   ... -- 300 1 "epic:Iron Blade"   # tier:ฐาน = สุ่ม Rare/Epic ใหม่ทุกการต่อสู้ (ค่าเฉลี่ยของ affix)
+##   ... -- 300 1 "epic:Plasma Blade"   # tier:ฐาน = สุ่ม Rare/Epic ใหม่ทุกการต่อสู้ (ค่าเฉลี่ยของ affix)
 var _weapon := ""
 var _gear_rng := RandomNumberGenerator.new()
 
@@ -33,6 +33,7 @@ func _init() -> void:
 	var checks := 0
 	var all_wins := 0
 	var all_battles := 0
+	var all_rounds := 0
 	var boss_wins := 0
 	var boss_battles := 0
 	for job in GameData.JOBS:
@@ -60,11 +61,12 @@ func _init() -> void:
 				line += "%-26s" % ("%3d%% / %3d%% / %.1f" % [roundi(100.0 * wins / per), roundi(100.0 * hp_left / maxi(1, wins)), float(rounds) / per])
 				all_wins += wins
 				all_battles += per
+				all_rounds += rounds
 				if m in GameData.TOWNS.values().map(func(t): return t.guard):
 					boss_wins += wins
 					boss_battles += per
 			print(line)
-	print("\nOverall win: %d%%   vs town guards: %d%%" % [roundi(100.0 * all_wins / maxi(1, all_battles)), roundi(100.0 * boss_wins / maxi(1, boss_battles))])
+	print("\nOverall win: %d%%   vs town guards: %d%%   avg rounds: %.1f" % [roundi(100.0 * all_wins / maxi(1, all_battles)), roundi(100.0 * boss_wins / maxi(1, boss_battles)), float(all_rounds) / maxi(1, all_battles)])
 	print("Hero skill use: %s" % str(skill_use))
 	print("Perfect checks (all slots passed): %d%% of hero checks" % roundi(100.0 * perfects / maxi(1, checks)))
 	print("(%.1fs)" % ((Time.get_ticks_msec() - t0) / 1000.0))

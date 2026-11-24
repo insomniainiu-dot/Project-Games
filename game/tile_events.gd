@@ -43,7 +43,7 @@ func land(player: PlayerStats) -> void:
 			var id: String = GameData.WILD_MONSTERS[randi() % GameData.WILD_MONSTERS.size()]
 			await fight(player, id)
 		"item":
-			var item: String = ["Herb", "Herb", "Big Herb", "Smoke Ball"][randi() % 4]
+			var item: String = ["Medkit", "Medkit", "Big Medkit", "Smoke Bomb"][randi() % 4]
 			if player.add_item(item):
 				await _dialogs.message("Item tile! You found a %s." % item)
 			else:
@@ -96,10 +96,10 @@ func fight(player: PlayerStats, monster_id: String) -> String:
 
 func _fight_dice_duel(player: PlayerStats, monster_id: String) -> String:
 	var m: Dictionary = GameData.MONSTERS[monster_id]
-	if player.items.has("Smoke Ball"):
-		var pick := await _dialogs.choose("A %s blocks your way!" % monster_id, ["Fight!", "Use Smoke Ball (escape)"])
+	if player.items.has("Smoke Bomb"):
+		var pick := await _dialogs.choose("A %s blocks your way!" % monster_id, ["Fight!", "Use Smoke Bomb (escape)"])
 		if pick == 1:
-			player.items.erase("Smoke Ball")
+			player.items.erase("Smoke Bomb")
 			_state.notify()
 			await _dialogs.message("You vanished in the smoke!")
 			return "run"
@@ -149,7 +149,7 @@ func _gear_drop(player: PlayerStats, m: Dictionary) -> void:
 	await _offer_gear(player, item, "%s DROP!" % ItemDB.TIERS[GameData.rarity(item)].name.to_upper())
 
 
-## ดรอปอาวุธ Unique ที่ยังไม่มี (ผู้คุมเมืองดรอปแน่นอน, มอนสเตอร์ทั่วไปตาม UNIQUE_DROP_CHANCE)
+## ดรอปอุปกรณ์ Unique (อาวุธ/เกราะ/เครื่องประดับ) ที่ยังไม่มี (ผู้คุมเมืองดรอปแน่นอน, มอนสเตอร์ทั่วไปตาม UNIQUE_DROP_CHANCE)
 func _unique_drop(player: PlayerStats, m: Dictionary) -> void:
 	if randf() >= float(m.get("unique_chance", GameData.UNIQUE_DROP_CHANCE)):
 		return
@@ -245,6 +245,14 @@ func _visit_town(player: PlayerStats, cell: Vector2i) -> void:
 		await _dialogs.message("%s is free! It will pay you %d Gold every day." % [town.name, town.tax])
 		if player.towns.size() == GameData.TOWNS.size():
 			await _dialogs.message("All towns are free! You saved the kingdom in %d days!" % _state.day)
+
+
+## เอาผู้คุมของเมืองที่ปลดปล่อยแล้วออก (หลังโหลดเซฟ)
+func refresh_town_guards() -> void:
+	for cell in _state.player.towns:
+		if _town_guards.has(cell):
+			_town_guards[cell].queue_free()
+			_town_guards.erase(cell)
 
 
 ## มอนสเตอร์ผู้คุมยืนเฝ้าเมือง

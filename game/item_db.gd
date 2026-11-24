@@ -74,6 +74,16 @@ static func register(record: Dictionary) -> String:
 	return id
 
 
+## ลงทะเบียนด้วย id เดิม (โหลดเซฟ) — ตัวนับ id ขยับให้เกินเลขที่โหลดมา กัน id ชนกับของใหม่
+static func restore(id: String, rec: Dictionary) -> void:
+	var r := rec.duplicate(true)
+	for a in r.get("affixes", []):
+		a.value = int(a.value) # JSON เก็บตัวเลขเป็น float
+	_instances[id] = r
+	var n := int(id.get_slice("#", 1))
+	_next = maxi(_next, n + 1)
+
+
 ## สุ่ม tier ตาม DROP_TIER_WEIGHTS แล้วสุ่มฐานจากของในร้าน Smithy
 static func random_drop(rng: RandomNumberGenerator) -> String:
 	var bases := []

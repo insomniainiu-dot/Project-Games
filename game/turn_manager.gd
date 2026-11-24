@@ -43,6 +43,7 @@ func play_turn() -> void:
 	_ui.set_steps_text("")
 	await _events.land(player)
 	await _end_day()
+	SaveGame.save(_state) # เซฟอัตโนมัติทุกสิ้นวัน
 	_busy = false
 	_ui.set_controls_enabled(true)
 	_state.notify()

@@ -39,13 +39,13 @@ func _player() -> PlayerStats:
 	p.gain_exp(400)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 3
-	var epic := ItemDB.create("War Axe", "epic", rng)
-	var rare_armor := ItemDB.create("Chain Mail", "rare", rng)
-	var epic_acc := ItemDB.create("Lucky Charm", "epic", rng)
+	var epic := ItemDB.create("Gravity Hammer", "epic", rng)
+	var rare_armor := ItemDB.create("Mesh Armor", "rare", rng)
+	var epic_acc := ItemDB.create("Lucky Chip", "epic", rng)
 	for it in [epic, rare_armor, epic_acc]:
 		p.add_gear(it)
 		p.equip(it)
-	for it in ["Siphon Edge", "Singularity Rod", ItemDB.create("Iron Blade", "rare", rng), "Hunter Bow"]:
+	for it in ["Siphon Edge", "Singularity Rod", ItemDB.create("Plasma Blade", "rare", rng), "Pulse Rifle"]:
 		p.add_gear(it)
 	p.add_gem("fireball")
 	p.add_gem("deploy_drone")
@@ -114,5 +114,62 @@ func _run() -> void:
 		ui._append_log(e)
 	ui._refresh()
 	await _shot("08_battle_end")
-	print("UI smoke done: %d actions, result %s" % [n, ui.state.result])
+	print("battle: %d actions, result %s" % [n, ui.state.result])
+	ui.queue_free()
+
+	# ---- ร้าน Smithy: ซื้อ gem + ขายของ Rare/Epic (กดปุ่มแทนผู้เล่น)
+	var state := GameState.new()
+	var dialogs := Dialogs.new()
+	root.add_child(dialogs)
+	var ew2 := EquipWindow.new()
+	root.add_child(ew2)
+	var shops := Shops.new()
+	root.add_child(shops)
+	shops.setup(state, dialogs, ew2)
+	p.gold = 1000
+	shops.visit_smithy(p) # ไม่ await: ขับด้วยการกดปุ่มด้านล่าง
+	await _press(dialogs, "Buy")
+	await _press(dialogs, "Skill Gems", "09_smithy_categories")
+	await _press(dialogs, "Twin Shiv", "10_smithy_gem_list")
+	await _press(dialogs, "Buy", "11_smithy_gem_confirm")
+	await _press(dialogs, "OK", "12_smithy_gem_bought")
+	await _press(dialogs, "Back")
+	await _press(dialogs, "Back")
+	await _press(dialogs, "Sell")
+	await _press(dialogs, "Back", "13_smithy_sell_list")
+	await _press(dialogs, "Leave")
+	print("smithy: gold %d, gems %s, bag %s" % [p.gold, p.gems, p.gem_bag])
+
+	# ---- ชนะผู้คุมเมือง: ดรอป Rare/Epic + Unique แน่นอน
+	var te := TileEvents.new()
+	te.set_process(false)
+	te._state = state
+	te._dialogs = dialogs
+	root.add_child(te)
+	var before := p.gear.size()
+	te._victory(p, GameData.MONSTERS["Goblin Chief"])
+	await _press(dialogs, "OK", "14_victory")
+	await _press(dialogs, "Keep", "15_drop_gear")
+	await _press(dialogs, "Equip", "16_drop_unique")
+	for i in 4:
+		await process_frame
+	print("drops: gear %d -> %d, weapon %s" % [before, p.gear.size(), p.weapon])
+	print("UI smoke done")
 	quit()
+
+
+## รอ dialog เปิด (ถ่ายรูปถ้าให้ชื่อ) แล้วกดปุ่มแรกที่ข้อความขึ้นต้นด้วย label
+func _press(d: Dialogs, label: String, shot := "") -> void:
+	for i in 60:
+		await process_frame
+		if d.is_open():
+			break
+	if shot != "":
+		await _shot(shot)
+	for b in d._buttons.get_children():
+		if (b as Button).text.begins_with(label):
+			(b as Button).pressed.emit()
+			for i in 3:
+				await process_frame
+			return
+	push_error("UI smoke: no button '%s' in dialog: %s" % [label, d._label.text.left(80)])

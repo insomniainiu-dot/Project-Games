@@ -135,7 +135,7 @@ static func choose_defense(s: Dictionary) -> Dictionary:
 	if hero.hp < hero.max_hp * CCBalance.HERO_AI_HEAL_BELOW:
 		var mon: Dictionary = s.units[CCBattle.MONSTER]
 		var worst := CCBattle.damage_for(mon, hero, skill, CCBattle.action_def(mon, skill).slots)
-		for item in ["Big Herb", "Herb"]:
+		for item in ["Big Medkit", "Medkit"]:
 			if s.items.has(item) and hero.hp + int(GameData.ITEMS[item].heal) > worst:
 				return {"type": "item", "item": item}
 	var best := {}

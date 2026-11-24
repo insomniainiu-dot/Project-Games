@@ -98,24 +98,39 @@ const JOB_SKILL := {
 ## ไม่มีอาวุธ / มอนสเตอร์ = ใช้ ACTIONS.attack ตามเดิม
 const DEFAULT_WEAPON_TYPE := "melee"
 const WEAPON_TYPES := {
-	"melee": {"name": "Melee", "attack": {"name": "Strike"}}, # = ACTIONS.attack: 3 ช่อง ATK, Perfect คริ
+	"melee": {"name": "Blade", "attack": {"name": "Strike"}}, # = ACTIONS.attack: 3 ช่อง ATK, Perfect คริ
 	"heavy": {"name": "Heavy", "attack": {"name": "Cleave", "slots": 4, "mult": 1.4}},
-	"bow": {"name": "Bow", "attack": {"name": "Quick Shot", "slots": 2, "check": "spd", "mult": 1.45, "perfect": ["pierce"]}},
+	"bow": {"name": "Rifle", "attack": {"name": "Quick Shot", "slots": 2, "check": "spd", "mult": 1.45, "perfect": ["pierce"]}},
 	"rod": {"name": "Psi Rod", "attack": {"name": "Psi Bolt", "check": "mag", "power": "mag", "mult": 1.3, "kind": "magic"}},
 }
 
 # ---------------------------------------------------------------- Skill Gem (ท่าที่ถอดเปลี่ยนได้ 2 ช่อง)
 ## คีย์ = id ท่าใน ACTIONS · price = ราคาที่ร้าน Smithy · ถือได้ GEM_SLOTS ช่อง
 ## gem เริ่มต้น = ["spell", สกิลอาชีพ] (ดู default_gems)
+## requires = ใช้ได้เฉพาะตอนถืออาวุธประเภทนี้ (ไม่ใส่ = ใช้ได้กับทุกอาวุธ) — ใส่ไว้ได้ แต่ใช้ในการต่อสู้ไม่ได้ (PlayerStats.active_gems)
 const GEM_SLOTS := 2
 const GEMS := {
 	"spell": {"price": 0, "desc": "Tech Attack: 2 slots, TEC. Perfect ignores resist."},
-	"heavy_blow": {"price": 160, "desc": "Breach Strike: 4 slots, ATK x1.9. Perfect stuns. Costs 1 Focus."},
-	"charged_shot": {"price": 160, "desc": "Charged Shot: 4 slots, ATK x1.9. Perfect ignores ARM. Costs 1 Focus."},
+	"heavy_blow": {"price": 160, "requires": ["melee", "heavy"], "desc": "Breach Strike: 4 slots, ATK x1.9. Perfect stuns. Costs 1 Focus."},
+	"charged_shot": {"price": 160, "requires": ["bow"], "desc": "Charged Shot: 4 slots, ATK x1.9. Perfect ignores ARM. Costs 1 Focus."},
 	"deploy_drone": {"price": 180, "desc": "Deploy Drone: 2 slots, TEC. Drone hits every turn, can't be defended. Costs 1 Focus."},
 	"fireball": {"price": 180, "desc": "Mind Spike: 3 slots, TEC x1.9. Perfect ignores resist + burns. Costs 1 Focus."},
-	"twin_stab": {"price": 160, "desc": "Twin Shiv: 2 slots, SPD check, ATK x1.45. Perfect hits twice + steals credits. Costs 1 Focus."},
+	"twin_stab": {"price": 160, "requires": ["melee"], "desc": "Twin Shiv: 2 slots, SPD check, ATK x1.45. Perfect hits twice + steals credits. Costs 1 Focus."},
 }
+
+
+## gem นี้ใช้กับอาวุธประเภทนี้ได้ไหม ("" = ไม่มีอาวุธ)
+static func gem_fits(gem: String, weapon_type: String) -> bool:
+	var req: Array = GEMS.get(gem, {}).get("requires", [])
+	return req.is_empty() or req.has(weapon_type)
+
+
+## ข้อความเงื่อนไข เช่น "needs Rifle" ("" = ไม่มีเงื่อนไข)
+static func gem_requirement_text(gem: String) -> String:
+	var req: Array = GEMS.get(gem, {}).get("requires", [])
+	if req.is_empty():
+		return ""
+	return "needs " + " / ".join(PackedStringArray(req.map(func(t): return WEAPON_TYPES[t].name)))
 
 
 ## คีย์ mods ที่เป็นค่า "แทนที่" ค่าพื้นฐาน (เช่น Breacher: คริ x1.5 → x1.8) — รวมกันแล้วเอาค่าที่มากกว่า ไม่บวก/คูณ

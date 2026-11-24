@@ -53,3 +53,20 @@ func _ready() -> void:
 	turns.setup(state, walker, events, witch, ui)
 
 	state.notify()
+	await _offer_continue(ui, events, witch)
+
+
+## มีเซฟอยู่: ถาม Continue / New Game (New Game ลบเซฟเดิมตอนจบวันแรกเอง เพราะเซฟทับ)
+func _offer_continue(ui: MainUI, events: TileEvents, witch: Witch) -> void:
+	if not SaveGame.has_save():
+		return
+	ui.set_controls_enabled(false)
+	var pick := await ui.dialogs.choose("Welcome back, Commander.", ["Continue (Day %d)" % SaveGame.saved_day(), "New Game"])
+	if pick == 0:
+		if SaveGame.load_into(state):
+			witch.position = Board.tile_pos(state.player.tile)
+			events.refresh_town_guards()
+		else:
+			await ui.dialogs.message("The save file couldn't be read. Starting a new game.")
+	ui.set_controls_enabled(true)
+	state.notify()

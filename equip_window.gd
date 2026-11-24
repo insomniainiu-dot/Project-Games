@@ -85,7 +85,11 @@ func _remove_gem(slot: int) -> void:
 
 func _preview_gem(gem: String) -> void:
 	_show_stats({})
-	_info.text = "[Skill Gem] %s" % CCBalance.GEMS[gem].desc
+	var req := CCBalance.gem_requirement_text(gem)
+	var warn := ""
+	if req != "" and not player.gem_fits_weapon(gem):
+		warn = "\nCan't be used with your current weapon (%s)." % req
+	_info.text = "[Skill Gem] %s%s%s" % [CCBalance.GEMS[gem].desc, "  (%s)" % req if req != "" else "", warn]
 
 
 # ================================================================ แสดงผล
@@ -106,6 +110,10 @@ func _refresh() -> void:
 	for i in CCBalance.GEM_SLOTS:
 		var gb: Button = _gem_buttons[i]
 		gb.text = "Gem %d:  %s" % [i + 1, GameData.gem_name(player.gems[i]) if i < player.gems.size() else "-  (empty)"]
+		gb.remove_theme_color_override("font_color")
+		if i < player.gems.size() and not player.gem_fits_weapon(player.gems[i]):
+			gb.text += "  (%s)" % CCBalance.gem_requirement_text(player.gems[i])
+			gb.add_theme_color_override("font_color", COLOR_DOWN)
 
 	_gear_title.text = "Gear bag  (%d/%d)  -  click to equip" % [player.gear.size(), GameData.MAX_GEAR]
 	for c in _gear_list.get_children():
@@ -131,7 +139,8 @@ func _refresh() -> void:
 		_gear_list.add_child(b)
 	for gem in player.gem_bag:
 		var b := Button.new()
-		b.text = "%s   [Skill Gem]" % GameData.gem_name(gem)
+		var req := CCBalance.gem_requirement_text(gem)
+		b.text = "%s   [Skill Gem]%s" % [GameData.gem_name(gem), "   (%s)" % req if req != "" else ""]
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		b.custom_minimum_size = Vector2(0, 42)
 		b.add_theme_font_size_override("font_size", 18)
