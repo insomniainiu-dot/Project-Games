@@ -154,13 +154,34 @@ func _run() -> void:
 	for i in 4:
 		await process_frame
 	print("drops: gear %d -> %d, weapon %s" % [before, p.gear.size(), p.weapon])
+
+	# ---- อีเวนต์บนกระดาน: ตัวเลือก D-F + ผล + ถอย (ใช้ตัวละครจริงเล่นแอนิเมชัน)
+	var witch := Witch.new()
+	root.add_child(witch)
+	te._piece = witch
+	p.renown = 20
+	p.scrip = 6
+	for c in [Vector2i(0, 0), Vector2i(1, 0), Vector2i(2, 0)]:
+		p.remember_step(c)
+	te.run_event(p, "stalled_crawler")
+	await _press(dialogs, "D.", "17_event_options")
+	await _press(dialogs, "OK", "18_event_result")
+	te.run_event(p, "broken_span")
+	await _press(dialogs, "B.")
+	await _press(dialogs, "OK", "19_event_pushed_back")
+	var hud2 := Hud.new()
+	root.add_child(hud2)
+	hud2.refresh(p, 4)
+	await _shot("20_hud_karma")
+	print("event: karma %d renown %d scrip %d tile %s" % [p.karma, p.renown, p.scrip, p.tile])
 	print("UI smoke done")
 	quit()
 
 
 ## รอ dialog เปิด (ถ่ายรูปถ้าให้ชื่อ) แล้วกดปุ่มแรกที่ข้อความขึ้นต้นด้วย label
 func _press(d: Dialogs, label: String, shot := "") -> void:
-	for i in 60:
+	var t0 := Time.get_ticks_msec()
+	while Time.get_ticks_msec() - t0 < 4000: # รอได้ถึง 4 วินาที (แอนิเมชันเดิน/ถอยก่อน dialog)
 		await process_frame
 		if d.is_open():
 			break

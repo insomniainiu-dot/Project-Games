@@ -232,7 +232,7 @@ static func create_battle(config: Dictionary) -> Dictionary:
 	var m: Dictionary = config.monster
 	var hero := _unit(h.name, h.get("job", ""), h.stats, int(h.get("hp", h.stats.hp)))
 	hero.mods = h.get("mods", {}).duplicate()
-	hero.focus = mini(CCBalance.FOCUS_MAX, CCBalance.FOCUS_START + int(mod(hero, "start_focus"))) # Deep Focus
+	hero.focus = clampi(CCBalance.FOCUS_START + int(mod(hero, "start_focus")), 0, CCBalance.FOCUS_MAX) # Deep Focus / Fatigue (ติดลบได้)
 	hero.barrier = int(mod(hero, "start_barrier")) # Kinetic Barrier
 	hero.reroll = int(mod(hero, "reroll_first_fail")) # Second Chance
 	hero.attack_def = h.get("attack_def", {}).duplicate(true) # ว่าง = ACTIONS.attack

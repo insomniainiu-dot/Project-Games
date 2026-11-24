@@ -31,6 +31,7 @@ func walk(player: PlayerStats, piece: Witch, steps: int) -> void:
 		first_step = false
 		if not piece.walking:
 			piece.begin_walk()
+		player.remember_step(player.tile) # ใช้ตอนอีเวนต์สั่ง "ถอย N"
 		player.came_from = player.tile
 		player.tile += dir
 		await piece.step_to(Board.tile_pos(player.tile))

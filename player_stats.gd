@@ -18,6 +18,17 @@ var gem_bag: Array[String] = [] # Skill Gem ที่มีแต่ยังไ
 var towns: Array[Vector2i] = [] # เมืองที่ปลดปล่อยแล้ว
 var trees := {} # Passive Tree แยกต่ออาชีพ: อาชีพ -> Array ของ node id ที่ลงแต้มไว้ (ไม่รวมจุดเริ่ม)
 
+# ฝ่าย + อีเวนต์ (docs/faction_event_design.md) — เกณฑ์ต่าง ๆ อยู่ที่ EventData
+var karma: int = EventData.KARMA_START
+var syndicate := false # อยู่ Redline Syndicate (Karma < 0 แล้วยังไม่กลับถึง KARMA_RETURN)
+var renown := 0 # ชื่อเสียง Freeport Guild
+var scrip := 0 # สกุลเงินกิลด์
+var fatigue := 0 # หัก Focus ตอนเริ่มการต่อสู้ครั้งถัดไป แล้วล้าง
+var skip_turns := 0 # เทิร์นที่ต้องข้าม (อีเวนต์ "หยุด N")
+var trail: Array[Vector2i] = [] # ช่องที่เพิ่งเดินผ่าน (ใหม่สุดท้ายสุด) ใช้ "ถอย N"
+var coupons := {} # ฝ่าย -> จำนวนส่วนลดร้าน 1 ครั้ง (ร้านฝ่ายมาในขั้น 3)
+var recent_events: Array[String] = [] # อีเวนต์ล่าสุด กันสุ่มซ้ำ
+
 # ตำแหน่งบนกระดาน (เก็บที่ผู้เล่นแต่ละคน เผื่อมีหลายผู้เล่นใน Phase 2)
 var tile: Vector2i = Board.CASTLE_TILE
 var came_from: Vector2i = Board.NO_TILE # ช่องก่อนหน้า กันเดินย้อนกลับ
@@ -348,6 +359,56 @@ func unequip(slot: String) -> bool:
 	return true
 
 
+# ---------------------------------------------------------------- ฝ่าย / อีเวนต์
+## "concord" / "syndicate"
+func faction() -> String:
+	return "syndicate" if syndicate else "concord"
+
+
+## ปรับ Karma แล้วเช็คการเปลี่ยนฝ่าย คืนฝ่ายใหม่ถ้าเปลี่ยน ("" = ไม่เปลี่ยน)
+func add_karma(n: int) -> String:
+	karma += n
+	if not syndicate and karma < 0:
+		syndicate = true
+		return "syndicate"
+	if syndicate and karma >= EventData.KARMA_RETURN:
+		syndicate = false
+		return "concord"
+	return ""
+
+
+## ผ่านเงื่อนไขตัวเลือก D ไหม ("concord" / "syndicate" / "freeport")
+func meets(need: String) -> bool:
+	match need:
+		"concord":
+			return not syndicate and karma >= EventData.D_CONCORD_KARMA
+		"syndicate":
+			return syndicate
+		"freeport":
+			return renown >= EventData.D_FREEPORT_RENOWN
+	return need == ""
+
+
+## จำช่องที่เดินผ่าน (BoardWalker เรียกทุกก้าว)
+func remember_step(cell: Vector2i) -> void:
+	trail.append(cell)
+	while trail.size() > EventData.TRAIL_SIZE:
+		trail.remove_at(0)
+
+
+## ถอยตามทางที่มาได้สูงสุด n ช่อง คืนช่องที่ผ่าน (ตามลำดับ) — ตำแหน่งผู้เล่นเปลี่ยนแล้ว
+func step_back(n: int) -> Array[Vector2i]:
+	var path: Array[Vector2i] = []
+	for i in n:
+		if trail.is_empty():
+			break
+		tile = trail.pop_back()
+		path.append(tile)
+	if not path.is_empty():
+		came_from = Board.NO_TILE # ถอยแล้วเลือกทางใหม่ได้อิสระ
+	return path
+
+
 # ---------------------------------------------------------------- เซฟ / โหลด (SaveGame)
 func to_dict() -> Dictionary:
 	var town_list := []
@@ -357,7 +418,10 @@ func to_dict() -> Dictionary:
 		"items": items.duplicate(), "weapon": weapon, "armor": armor, "accessory": accessory,
 		"gear": gear.duplicate(), "gems": gems.duplicate(), "gem_bag": gem_bag.duplicate(),
 		"towns": town_list, "trees": trees.duplicate(true),
-		"tile": [tile.x, tile.y], "came_from": [came_from.x, came_from.y]}
+		"tile": [tile.x, tile.y], "came_from": [came_from.x, came_from.y],
+		"karma": karma, "syndicate": syndicate, "renown": renown, "scrip": scrip, "fatigue": fatigue,
+		"skip_turns": skip_turns, "trail": trail.map(func(c): return [c.x, c.y]), "coupons": coupons.duplicate(),
+		"recent_events": recent_events.duplicate()}
 
 
 ## เขียนทับค่าด้วยข้อมูลเซฟ (ค่าที่ไม่มีในเซฟคงเดิม)
@@ -387,6 +451,21 @@ func from_dict(d: Dictionary) -> void:
 		tile = Vector2i(int(d.tile[0]), int(d.tile[1]))
 	if d.has("came_from"):
 		came_from = Vector2i(int(d.came_from[0]), int(d.came_from[1]))
+	# ฝ่าย / อีเวนต์ (เซฟ v1 ไม่มี = ใช้ค่าเริ่มต้น)
+	karma = int(d.get("karma", karma))
+	syndicate = bool(d.get("syndicate", syndicate))
+	renown = int(d.get("renown", renown))
+	scrip = int(d.get("scrip", scrip))
+	fatigue = int(d.get("fatigue", fatigue))
+	skip_turns = int(d.get("skip_turns", skip_turns))
+	trail.clear()
+	for c in d.get("trail", []):
+		trail.append(Vector2i(int(c[0]), int(c[1])))
+	coupons = {}
+	var cp: Dictionary = d.get("coupons", {})
+	for k in cp:
+		coupons[k] = int(cp[k])
+	recent_events.assign(d.get("recent_events", []).filter(func(e): return EventData.EVENTS.has(e)))
 	_recalc_base()
 	hp = clampi(int(d.get("hp", hp)), 1, max_hp())
 

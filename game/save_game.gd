@@ -4,7 +4,8 @@ class_name SaveGame
 ## เซฟอัตโนมัติตอนจบวัน (TurnManager) · เปิดเกมถ้ามีเซฟจะถาม Continue / New Game (main.gd)
 
 const PATH := "user://save.json"
-const VERSION := 1
+const VERSION := 2 ## v2: ฝ่าย / อีเวนต์ (karma, renown, scrip, fatigue, ...) — โหลด v1 ได้ (ใช้ค่าเริ่มต้น)
+const MIN_VERSION := 1
 
 
 static func has_save(path := PATH) -> bool:
@@ -23,7 +24,8 @@ static func to_dict(state: GameState) -> Dictionary:
 
 ## เขียนทับ state ด้วยข้อมูลเซฟ (แก้ในที่ ไม่สร้าง object ใหม่ — ระบบอื่นถือ reference ไว้อยู่)
 static func apply(state: GameState, data: Dictionary) -> bool:
-	if int(data.get("version", 0)) != VERSION or not data.has("player"):
+	var v := int(data.get("version", 0))
+	if v < MIN_VERSION or v > VERSION or not data.has("player"):
 		return false
 	var items: Dictionary = data.get("items", {})
 	for id in items:

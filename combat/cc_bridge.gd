@@ -6,7 +6,10 @@ static func hero_config(p: PlayerStats) -> Dictionary:
 	var items := []
 	for it in p.items:
 		items.append(it)
-	return {"name": p.name, "job": p.job, "hp": p.hp, "items": items, "mods": p.battle_mods(),
+	var mods := p.battle_mods()
+	if p.fatigue > 0: # Fatigue จากอีเวนต์: เริ่มการต่อสู้ด้วย Focus น้อยลง
+		mods = CCBalance.merge_mods(mods, {"start_focus": -p.fatigue})
+	return {"name": p.name, "job": p.job, "hp": p.hp, "items": items, "mods": mods,
 		"attack_def": p.weapon_attack(), "gems": p.active_gems(), "granted": p.granted_skills(),
 		"stats": {"hp": p.max_hp(), "atk": p.stat("atk"), "def": p.stat("def"), "mag": p.stat("mag"), "spd": p.stat("spd"), "lck": p.stat("lck")}}
 

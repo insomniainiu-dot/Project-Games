@@ -28,6 +28,16 @@ func play_turn() -> void:
 		return # ยังทอย/เดินอยู่
 	_busy = true
 	_ui.set_controls_enabled(false)
+	if _state.player.skip_turns > 0: # อีเวนต์สั่ง "หยุด N": ไม่ได้ทอย แต่วันยังเดิน
+		_state.player.skip_turns -= 1
+		await _ui.dialogs.message("You're held up and can't move this turn.%s" %
+			("" if _state.player.skip_turns == 0 else " (%d more)" % _state.player.skip_turns))
+		await _end_day()
+		SaveGame.save(_state)
+		_busy = false
+		_ui.set_controls_enabled(true)
+		_state.notify()
+		return
 	_ui.set_dice_text("Rolling...")
 	var results: Array = await _ui.roll_dice()
 	var total := 0

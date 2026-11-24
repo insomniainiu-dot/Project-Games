@@ -283,6 +283,7 @@ const TILE_TYPES := {
 	"item": {"color": Color(0.75, 1.25, 0.75), "name": "Item"},
 	"gold": {"color": Color(1.3, 1.2, 0.55), "name": "Gold"},
 	"trap": {"color": Color(1.3, 0.6, 0.6), "name": "Trap"},
+	"event": {"color": Color(1.05, 0.65, 1.35), "name": "Event"}, # อีเวนต์ (EventData / EventRunner)
 	"empty": {"color": Color(0.95, 0.95, 0.95), "name": "Empty"},
 }
 
@@ -303,6 +304,6 @@ const SPECIAL_TILES := {
 }
 
 # รูปแบบช่องทั่วไป วนตามลำดับ
-const TILE_PATTERN := ["battle", "gold", "battle", "item", "empty", "battle", "trap", "gold", "item"]
+const TILE_PATTERN := ["battle", "gold", "battle", "item", "event", "battle", "trap", "gold", "event"]
 
 const EXP_TO_LEVEL := 20 # exp ที่ต้องใช้ = EXP_TO_LEVEL * level

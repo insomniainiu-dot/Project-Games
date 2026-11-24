@@ -36,11 +36,13 @@ func refresh(p: PlayerStats, day: int) -> void:
 	_hp_bar.max_value = p.max_hp()
 	_hp_bar.value = p.hp
 	var pts := p.unspent_points()
-	_text.text = ("Passive points: %d  (click Passive)\n" % pts if pts > 0 else "") + "%s  [%s Lv %d]\nHP %d / %d    EXP %d / %d\nATK %d  ARM %d  TEC %d  SPD %d\nGold %d    Day %d    Towns %d/%d\nWeapon: %s\nArmor: %s\nAccessory: %s\nGems: %s\nItems: %s" % [
+	_text.text = ("Passive points: %d  (click Passive)\n" % pts if pts > 0 else "") + "%s  [%s Lv %d]\nHP %d / %d    EXP %d / %d\nATK %d  ARM %d  TEC %d  SPD %d\nGold %d    Day %d    Towns %d/%d\n%s\nWeapon: %s\nArmor: %s\nAccessory: %s\nGems: %s\nItems: %s" % [
 		p.name, p.job, p.level,
 		p.hp, p.max_hp(), p.xp, p.exp_needed(),
 		p.stat("atk"), p.stat("def"), p.stat("mag"), p.stat("spd"),
 		p.gold, day, p.towns.size(), GameData.TOWNS.size(),
+		"Karma %d (%s)  Renown %d  Scrip %d%s" % [p.karma, "Syndicate" if p.syndicate else "Concord", p.renown, p.scrip,
+			"\nFatigue %d" % p.fatigue if p.fatigue > 0 else ""],
 		_or_dash(GameData.display_name(p.weapon)), _or_dash(GameData.display_name(p.armor)), _or_dash(GameData.display_name(p.accessory)),
 		", ".join(PackedStringArray(p.gems.map(func(g): return GameData.gem_name(g) + ("" if p.gem_fits_weapon(g) else " (x)")))) if not p.gems.is_empty() else "-",
 		", ".join(PackedStringArray(p.items)) if not p.items.is_empty() else "-",

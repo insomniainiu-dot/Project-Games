@@ -53,6 +53,8 @@ func land(player: PlayerStats) -> void:
 			amount = roundi(amount * player.gold_mult())
 			player.gold += amount
 			await _dialogs.message("Gold tile! You found %d Gold." % amount)
+		"event":
+			await run_event(player)
 		"trap":
 			if randf() < 0.5:
 				var lost := roundi(player.gold * 0.15)
@@ -63,6 +65,33 @@ func land(player: PlayerStats) -> void:
 				player.hp = maxi(1, player.hp - dmg)
 				await _dialogs.message("Trap! Falling rocks hit you for %d damage." % dmg)
 	_state.notify()
+
+
+# ================================================================ อีเวนต์ (EventData / EventRunner)
+func run_event(player: PlayerStats, event_id := "") -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.randomize()
+	if event_id == "":
+		event_id = EventRunner.pick(player, rng)
+	var ev: Dictionary = EventData.EVENTS[event_id]
+	while true:
+		var opts := EventRunner.visible_options(player, event_id)
+		var labels: Array = opts.map(func(o): return EventRunner.describe(player, o))
+		var pick := await _dialogs.choose("%s\n%s" % [ev.title.to_upper(), ev.text], labels)
+		var opt: Dictionary = opts[pick]
+		var av := EventRunner.availability(player, opt)
+		if not av.ok:
+			await _dialogs.message(av.reason)
+			continue
+		var r := EventRunner.resolve(player, event_id, opt.key, rng)
+		_state.notify()
+		if not r.back_path.is_empty():
+			var points: Array[Vector3] = []
+			for c in r.back_path:
+				points.append(Board.tile_pos(c))
+			await _piece.move_along(points)
+		await _dialogs.message("\n".join(r.lines))
+		return
 
 
 # ================================================================ ต่อสู้
@@ -82,6 +111,7 @@ func fight(player: PlayerStats, monster_id: String) -> String:
 	var final: Dictionary = await ui.start(CCBridge.config(player, monster_id, randi()), CCBridge.portraits(monster_id))
 	ui.queue_free()
 	CCBridge.apply_result(player, final)
+	player.fatigue = 0 # Fatigue ใช้ไปกับการต่อสู้ครั้งนี้แล้ว
 	var result: String = final.result
 	match result:
 		"win":
@@ -196,8 +226,9 @@ func _visit_castle(player: PlayerStats) -> void:
 		match pick:
 			0:
 				player.hp = player.max_hp()
+				player.fatigue = 0
 				_state.notify()
-				await _dialogs.message("You rest well. HP fully restored!")
+				await _dialogs.message("You rest well. HP fully restored, fatigue gone!")
 			1:
 				var jobs: Array = GameData.JOBS.keys()
 				var labels: Array = []
