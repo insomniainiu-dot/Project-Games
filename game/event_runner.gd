@@ -85,9 +85,10 @@ static func describe(player: PlayerStats, opt: Dictionary) -> String:
 
 
 # ================================================================ คิดผล
+## ผล: {"lines", "back_path", "faction", "fight"} — fight ไม่ว่าง = ฝั่ง UI ต้องสู้ แล้วเรียก after_fight(...)
 static func resolve(player: PlayerStats, event_id: String, key: String, rng: RandomNumberGenerator) -> Dictionary:
 	var opt := option(event_id, key)
-	var out := {"lines": PackedStringArray(), "back_path": [], "faction": ""}
+	var out := _new_out()
 	_remember(player, event_id)
 	if opt.is_empty() or not availability(player, opt).ok:
 		out.lines.append("Nothing happens.")
@@ -106,6 +107,37 @@ static func resolve(player: PlayerStats, event_id: String, key: String, rng: Ran
 	if out.lines.is_empty():
 		out.lines.append("You move on.")
 	return out
+
+
+static func _new_out() -> Dictionary:
+	return {"lines": PackedStringArray(), "back_path": [], "faction": "", "fight": {}}
+
+
+## หลังสู้ในอีเวนต์จบ: ใส่ผล win / lose ของอีเวนต์ (แพ้แบบจริงจังถูกส่งกลับปราสาทแล้ว จึงข้าม "back")
+## result = "win" / "lose" / "run" (หนี = ไม่ได้อะไรเพิ่ม)
+static func after_fight(player: PlayerStats, fight: Dictionary, result: String, rng: RandomNumberGenerator) -> Dictionary:
+	var out := _new_out()
+	match result:
+		"win":
+			_apply_all(player, fight.get("win", []), rng, out)
+		"lose":
+			var lose: Array = fight.get("lose", [])
+			if not fight.get("friendly", false):
+				lose = lose.filter(func(e): return e[0] != "back")
+			_apply_all(player, lose, rng, out)
+	return out
+
+
+## สเปกการต่อสู้จากข้อมูลอีเวนต์ → คำขอที่ TileEvents.fight ใช้ได้เลย
+static func _fight_request(player: PlayerStats, spec: Dictionary, rng: RandomNumberGenerator) -> Dictionary:
+	var monster: String = spec.get("monster", EventData.WILD_FIGHT)
+	if monster == EventData.WILD_FIGHT:
+		monster = GameData.WILD_MONSTERS[rng.randi_range(0, GameData.WILD_MONSTERS.size() - 1)]
+	var opts := {"scale": EventData.fight_scale(player.level, spec.get("boss", false), spec.get("weak", {}), float(spec.get("power", 1.0)))}
+	if spec.has("hero_mods"):
+		opts.hero_mods = spec.hero_mods
+	return {"monster": monster, "opts": opts, "friendly": spec.get("friendly", false), "exp_mult": float(spec.get("exp_mult", 1.0)),
+		"boss": spec.get("boss", false), "win": spec.get("win", []), "lose": spec.get("lose", [])}
 
 
 ## cost เขียนเป็นจำนวนที่ "จ่าย" (บวก) → แปลงเป็น effect: ["scrip", 5] = Scrip −5
@@ -188,6 +220,12 @@ static func _apply(player: PlayerStats, e: Array, rng: RandomNumberGenerator, ou
 		"coupon":
 			player.coupons[e[1]] = int(player.coupons.get(e[1], 0)) + 1
 			out.lines.append("Got a %s shop coupon" % EventData.FACTION_NAMES[e[1]])
+		"ally":
+			player.ally_turns = maxi(player.ally_turns, int(e[1]))
+			out.lines.append("A grateful creature will fight beside you next battle (%d dmg/turn)" % EventData.ally_damage(player.level))
+		"fight": # ต้องเป็น effect สุดท้ายของชุด (ผลหลังสู้อยู่ใน win / lose)
+			out.fight = _fight_request(player, e[1], rng)
+			out.lines.append("%s: %s!" % ["MINI-BOSS" if out.fight.boss else ("Friendly duel" if out.fight.friendly else "Fight"), out.fight.monster])
 		_:
 			push_error("EventRunner: unknown effect %s" % str(e))
 
@@ -281,4 +319,14 @@ static func _effect_texts(player: PlayerStats, effects: Array) -> PackedStringAr
 				out.append("Robbed")
 			"coupon":
 				out.append("Shop coupon")
+			"ally":
+				out.append("Ally next battle")
+			"fight":
+				var spec: Dictionary = e[1]
+				var who: String = spec.get("monster", EventData.WILD_FIGHT)
+				var label := "Mini-boss" if spec.get("boss", false) else ("Duel" if spec.get("friendly", false) else "Fight")
+				out.append("%s%s" % [label, "" if who == EventData.WILD_FIGHT else " " + who])
+				var win := _effect_texts(player, spec.get("win", []))
+				if not win.is_empty():
+					out.append("win: " + ", ".join(win))
 	return out

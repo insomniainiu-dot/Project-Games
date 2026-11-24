@@ -118,6 +118,6 @@ func _open_bag() -> void:
 			_state.notify()
 			await _ui.dialogs.message("Used %s. Recovered %d HP." % [item, healed])
 		else:
-			await _ui.dialogs.message("%s can only be used in battle." % item)
+			await _ui.dialogs.message("%s %s." % [item, "is used during events" if GameData.ITEMS[item].get("event_item", false) else "can only be used in battle"])
 	_busy = false
 	_ui.set_controls_enabled(true)

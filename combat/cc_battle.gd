@@ -9,7 +9,8 @@ class_name CCBattle
 ##   "seed": int,
 ##   "hero": {"name", "job", "stats": {hp, atk, def, mag, spd, lck (ไม่ใส่ = 0)}, "hp": HP ปัจจุบัน, "items": [...],
 ##            "attack_def": ท่า Attack จากอาวุธ (CCBalance.weapon_attack, ไม่ใส่ = ACTIONS.attack),
-##            "gems": [Skill Gem สูงสุด 2] (ไม่ใส่ = CCBalance.default_gems(job))},
+##            "gems": [Skill Gem สูงสุด 2] (ไม่ใส่ = CCBalance.default_gems(job)),
+##            "ally_turns" / "ally_damage": สัตว์พันธมิตรจากอีเวนต์ (ทำงานแบบโดรน)},
 ##   "monster": {"name", "stats", "actions": {ท่า: น้ำหนัก}, "defense": {วิธีป้องกัน: น้ำหนัก}, "gold"},
 ## }
 ## Action ของผู้เล่น:
@@ -236,6 +237,9 @@ static func create_battle(config: Dictionary) -> Dictionary:
 	hero.barrier = int(mod(hero, "start_barrier")) # Kinetic Barrier
 	hero.reroll = int(mod(hero, "reroll_first_fail")) # Second Chance
 	hero.attack_def = h.get("attack_def", {}).duplicate(true) # ว่าง = ACTIONS.attack
+	if int(h.get("ally_turns", 0)) > 0: # สัตว์พันธมิตรจากอีเวนต์ ช่วยยิงแบบโดรนตั้งแต่ต้นตาแรก
+		hero.drone = int(h.ally_turns)
+		hero.drone_damage = int(h.get("ally_damage", 1))
 	if h.has("gems"):
 		hero.gems = clean_gems(h.gems)
 	hero.granted = h.get("granted", []).filter(func(g): return CCBalance.ACTIONS.has(g) and g != "attack" and g != "flee")

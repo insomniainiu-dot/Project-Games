@@ -70,6 +70,8 @@ const ITEMS := {
 	"Plasma Grenade": {"type": "use", "battle": "attack", "price": 35, "damage": 12, "desc": "Deal 12 damage, never misses. (Battle: attack turn)"},
 	"Toxin Dart": {"type": "use", "battle": "attack", "price": 30, "poison": {"turns": 3, "damage": 4}, "desc": "Poison: 4 damage for 3 turns. (Battle: attack turn)"},
 	"Smoke Bomb": {"type": "use", "battle": "any", "price": 25, "escape": true, "desc": "Escape a battle for sure. (Battle: any turn)"},
+	# ใช้ในอีเวนต์ (EventData cost "use_item") — ใช้ในการต่อสู้ไม่ได้
+	"Sedative Dart": {"type": "use", "event_item": true, "price": 40, "desc": "Calms a rampaging beast without a fight. (Used in events)"},
 	# อาวุธ — weapon_type กำหนดท่า Attack (CCBalance.WEAPON_TYPES)
 	# อาวุธเริ่มต้นของแต่ละอาชีพ (JOBS "start_weapon") ราคา 0 ไม่ขายในร้าน · ค่าพลังรวม 3 เท่ากันทุกชิ้น
 	"Service Baton": {"type": "weapon", "weapon_type": "melee", "price": 0, "atk": 3, "desc": "Standard-issue shock baton."},
@@ -125,6 +127,7 @@ const ITEMS := {
 	"Servo Bracer": {"type": "accessory", "price": 100, "atk": 3, "desc": "Motorized grip assist."},
 	"Med Implant": {"type": "accessory", "price": 120, "hp": 15, "desc": "Keeps your vitals topped up."},
 	"Neuro Earpiece": {"type": "accessory", "price": 140, "mag": 4, "die_rune": "twin", "desc": "Whispers tactical data. (Twin rune)"},
+	"Beacon Relic": {"type": "accessory", "price": 200, "def": 2, "mag": 2, "lck": 3, "desc": "A Concord keepsake. Only given, never sold."}, # รางวัลอีเวนต์ฝ่ายดี
 	# เครื่องประดับ Unique
 	"Gambler's Die": {"type": "accessory", "rarity": "unique", "price": 350, "lck": 10,
 		"mods": {"perfect_mult": 1.4, "imperfect_mult": 0.8},
@@ -140,7 +143,7 @@ const ITEMS := {
 		"desc": "Restarts your heart. Sometimes twice."},
 }
 
-const ITEM_SHOP_STOCK := ["Medkit", "Big Medkit", "Stim Shot", "Armor Gel", "Plasma Grenade", "Toxin Dart", "Smoke Bomb"] # ร้านไอเทม (ช่อง Shop)
+const ITEM_SHOP_STOCK := ["Medkit", "Big Medkit", "Stim Shot", "Armor Gel", "Plasma Grenade", "Toxin Dart", "Smoke Bomb", "Sedative Dart"] # ร้านไอเทม (ช่อง Shop) — Sedative Dart ย้ายไป Freeport Exchange ในขั้น 3
 # ร้านอาวุธ (บ้านข้างปราสาท / ช่อง Smithy) แยกตามหมวด
 const SMITHY_STOCK := {
 	"weapon": ["Ion Rod", "Plasma Blade", "Pulse Rifle", "Solar Lance", "Gravity Hammer"],
@@ -265,6 +268,22 @@ const MONSTERS := {
 		"dd_job": "magician", "dd_personality": "aggressive", "cc_actions": {"attack": 2, "spell": 2, "fireball": 1}, "cc_defense": {"block": 2, "dodge": 1}, "unique_chance": 1.0, "gear_chance": 1.0,
 		"offense": {"attack": 4, "strike": 2, "magic": 5},
 		"defense": {"guard": 3, "counter": 2, "ward": 5},
+	},
+	# มอนสเตอร์ของอีเวนต์ (EventData) — ไม่อยู่ใน WILD_MONSTERS · ค่าพลังถูกปรับตามเลเวลตอนสู้ (EventData.fight_scale)
+	"Dust Stalker": {
+		"sprite": "res://monsters/goblin.png", "frames": 4, "scale": 0.9, "tint": Color(0.85, 0.7, 0.45),
+		"hp": 24, "atk": 9, "def": 3, "mag": 1, "spd": 9, "exp": 15, "gold": 15,
+		"dd_job": "thief", "dd_personality": "aggressive", "cc_actions": {"attack": 1}, "cc_defense": {"dodge": 2, "counter": 1},
+		"offense": {"attack": 6, "strike": 3, "magic": 0},
+		"defense": {"guard": 2, "counter": 4, "ward": 1},
+	},
+	"Rockhide Grazer": { # มินิบอสของอีเวนต์ (ตัวคูณ MINI_BOSS_MULT ตอนสู้)
+		"sprite": "res://monsters/goblin.png", "frames": 4, "scale": 1.5, "tint": Color(0.7, 0.6, 0.5),
+		"hp": 36, "atk": 10, "def": 3, "mag": 1, "spd": 4, "exp": 30, "gold": 50, # ARM ต่ำ: อาชีพตีเบาก็ล้มได้ (sim: tools/event_sim.gd)
+		"dd_job": "warrior", "dd_personality": "aggressive", "cc_actions": {"attack": 3, "heavy_blow": 1}, "cc_defense": {"block": 3, "counter": 1},
+		"gear_chance": 1.0,
+		"offense": {"attack": 5, "strike": 5, "magic": 0},
+		"defense": {"guard": 5, "counter": 2, "ward": 1},
 	},
 }
 

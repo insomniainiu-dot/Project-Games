@@ -27,6 +27,7 @@ var fatigue := 0 # หัก Focus ตอนเริ่มการต่อส
 var skip_turns := 0 # เทิร์นที่ต้องข้าม (อีเวนต์ "หยุด N")
 var trail: Array[Vector2i] = [] # ช่องที่เพิ่งเดินผ่าน (ใหม่สุดท้ายสุด) ใช้ "ถอย N"
 var coupons := {} # ฝ่าย -> จำนวนส่วนลดร้าน 1 ครั้ง (ร้านฝ่ายมาในขั้น 3)
+var ally_turns := 0 # สัตว์พันธมิตรจากอีเวนต์ ช่วยในการต่อสู้ครั้งถัดไป (จำนวนตา)
 var recent_events: Array[String] = [] # อีเวนต์ล่าสุด กันสุ่มซ้ำ
 
 # ตำแหน่งบนกระดาน (เก็บที่ผู้เล่นแต่ละคน เผื่อมีหลายผู้เล่นใน Phase 2)
@@ -421,7 +422,7 @@ func to_dict() -> Dictionary:
 		"tile": [tile.x, tile.y], "came_from": [came_from.x, came_from.y],
 		"karma": karma, "syndicate": syndicate, "renown": renown, "scrip": scrip, "fatigue": fatigue,
 		"skip_turns": skip_turns, "trail": trail.map(func(c): return [c.x, c.y]), "coupons": coupons.duplicate(),
-		"recent_events": recent_events.duplicate()}
+		"recent_events": recent_events.duplicate(), "ally_turns": ally_turns}
 
 
 ## เขียนทับค่าด้วยข้อมูลเซฟ (ค่าที่ไม่มีในเซฟคงเดิม)
@@ -466,6 +467,7 @@ func from_dict(d: Dictionary) -> void:
 	for k in cp:
 		coupons[k] = int(cp[k])
 	recent_events.assign(d.get("recent_events", []).filter(func(e): return EventData.EVENTS.has(e)))
+	ally_turns = int(d.get("ally_turns", ally_turns))
 	_recalc_base()
 	hp = clampi(int(d.get("hp", hp)), 1, max_hp())
 

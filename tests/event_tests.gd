@@ -6,7 +6,7 @@ var _failed := 0
 var _section := ""
 
 const KNOWN_EFFECTS := ["karma", "renown", "scrip", "fatigue", "gold_pct", "lose_gold_pct", "hp_pct", "item", "use_item",
-	"reward", "back", "skip", "steal", "coupon"]
+	"reward", "back", "skip", "steal", "coupon", "ally", "fight"]
 
 
 func _init() -> void:
@@ -16,6 +16,7 @@ func _init() -> void:
 	_effects()
 	_board_effects()
 	_battle_link()
+	_fights()
 	_save()
 	_fuzz()
 	print("\nEvent tests: %d passed, %d failed" % [_passed, _failed])
@@ -57,6 +58,21 @@ func _all_effects(o: Dictionary) -> Array:
 		out.append_array(o.check["fail"])
 	if o.has("roll"):
 		out.append_array(o.roll.effects)
+	for e in out.duplicate():
+		if e[0] == "fight":
+			out.append_array(e[1].get("win", []))
+			out.append_array(e[1].get("lose", []))
+	return out
+
+
+## ทุกชุด effect ของตัวเลือก (ใช้เช็คว่า fight อยู่ท้ายชุด)
+func _effect_lists(o: Dictionary) -> Array:
+	var out: Array = [o.get("effects", []), o.get("alt", []), o.get("cost", [])]
+	if o.has("check"):
+		out.append(o.check["pass"])
+		out.append(o.check["fail"])
+	if o.has("roll"):
+		out.append(o.roll.effects)
 	return out
 
 
@@ -80,6 +96,12 @@ func _data() -> void:
 			if o.has("check"):
 				var st: String = o.check.get("stat", "")
 				check(st == "" or GameData.STAT_KEYS.has(st), "%s/%s check stat %s exists" % [id, o.key, st])
+			for lst in _effect_lists(o):
+				for i in lst.size():
+					if lst[i][0] == "fight":
+						check(i == lst.size() - 1, "%s/%s fight is the last effect of its list" % [id, o.key])
+						var mon: String = lst[i][1].get("monster", EventData.WILD_FIGHT)
+						check(mon == EventData.WILD_FIGHT or GameData.MONSTERS.has(mon), "%s/%s monster %s exists" % [id, o.key, mon])
 	check(GameData.TILE_PATTERN.has("event") and GameData.TILE_TYPES.has("event"), "event tile is on the board")
 
 
@@ -215,6 +237,85 @@ func _battle_link() -> void:
 	eq(CCBattle.create_battle(CCBridge.config(p, "Goblin", 1)).units[0].focus, 0, "Focus never starts below 0")
 
 
+func _fights() -> void:
+	section("combat events (step 2)")
+	# ตัวคูณมอนสเตอร์
+	var s1 := EventData.fight_scale(1, false)
+	check(is_equal_approx(s1.hp, 1.0) and is_equal_approx(s1.atk, 1.0), "Lv 1, normal = x1")
+	var s5 := EventData.fight_scale(5, true, {"atk": 0.7})
+	check(is_equal_approx(s5.hp, 1.4 * EventData.MINI_BOSS_MULT) and is_equal_approx(s5.atk, 1.4 * EventData.MINI_BOSS_MULT * 0.7) and is_equal_approx(s5.def, 1.4),
+		"Lv 5 mini-boss weakened: HP x2.1, ATK x1.47, ARM x1.4")
+	var mc := CCBridge.monster_config("Goblin", {"hp": 2.0, "atk": 0.5})
+	check(mc.stats.hp == 56 and mc.stats.atk == 5 and mc.stats.spd == GameData.MONSTERS.Goblin.spd, "monster_config scales stats (SPD unchanged)")
+	# อีเวนต์ส่งคำขอต่อสู้
+	var p := PlayerStats.new()
+	p.gain_exp(200)
+	var r := EventRunner.resolve(p, "raider_checkpoint", "C", rng(2))
+	check(GameData.WILD_MONSTERS.has(r.fight.monster), "wild fight picks a wild monster")
+	check(is_equal_approx(r.fight.opts.scale.hp, EventData.fight_scale(p.level, false, {}, 1.4).hp), "fight scales with level x raider power 1.4")
+	check(r.fight.opts.scale.def == EventData.fight_scale(p.level, false).def, "power doesn't touch ARM")
+	var g := EventRunner.resolve(p, "rockhide_grazer", "A", rng(2))
+	check(g.fight.monster == "Rockhide Grazer" and g.fight.boss and g.fight.exp_mult == 2.0, "mini-boss request: x1.5, EXP x2")
+	var h := EventRunner.resolve(p, "rockhide_grazer", "C", rng(2))
+	eq(h.fight.opts.hero_mods, {"attack_mult": 1.2}, "poacher helps: hero ATK x1.2")
+	var cfg := CCBridge.config(p, h.fight.monster, 1, h.fight.opts)
+	check(is_equal_approx(cfg.hero.mods.get("attack_mult", 1.0), 1.2) and cfg.monster.stats.hp > GameData.MONSTERS["Rockhide Grazer"].hp,
+		"bridge applies hero buff + boss scaling")
+	# ผลหลังสู้
+	var w := PlayerStats.new()
+	var k0 := w.karma
+	EventRunner.after_fight(w, g.fight, "win", rng(1))
+	eq(w.karma, k0 + 3, "win effects apply (Karma +3)")
+	var l := PlayerStats.new()
+	l.remember_step(Vector2i(1, 1))
+	var lost := EventRunner.after_fight(l, {"lose": [["back", 1], ["skip", 1]]}, "lose", rng(1))
+	check(lost.back_path.is_empty() and l.skip_turns == 1, "real defeat skips 'back' (already sent home) but keeps the rest")
+	var fr := PlayerStats.new()
+	fr.gold = 100
+	EventRunner.after_fight(fr, EventRunner.resolve(fr, "pit_duelist", "A", rng(1)).fight, "lose", rng(1))
+	eq(fr.gold, 90, "friendly duel loss pays 10%")
+	check(EventRunner.after_fight(PlayerStats.new(), g.fight, "run", rng(1)).lines.is_empty(), "running away gives nothing")
+	# สัตว์พันธมิตร
+	var a := PlayerStats.new()
+	EventRunner.resolve(a, "snared_stalker", "A", rng(1))
+	eq(a.ally_turns, 1, "treating the stalker gives an ally")
+	var b := CCBattle.create_battle(CCBridge.config(a, "Goblin", 1))
+	check(b.units[0].drone == 1 and b.units[0].drone_damage == EventData.ally_damage(a.level), "ally fights like a drone from turn 1")
+	var shot: Array = b.log.filter(func(e): return e.t == "damage" and e.cause == "drone")
+	check(not shot.is_empty() or CCBattle.phase(b) == "defend", "ally shoots at the start of the hero's turn")
+	var weak := EventRunner.resolve(PlayerStats.new(), "snared_stalker", "C", rng(1))
+	check(weak.fight.monster == "Dust Stalker" and is_equal_approx(weak.fight.opts.scale.atk, 0.7), "weakened stalker: ATK x0.7")
+	# ไอเทมอีเวนต์
+	check(not CCBattle.item_usable("Sedative Dart", "attack") and not CCBattle.item_usable("Sedative Dart", "defense"), "Sedative Dart isn't a battle item")
+	var dart := PlayerStats.new()
+	dart.karma = 45
+	dart.items.assign(["Sedative Dart"])
+	var dr := EventRunner.resolve(dart, "rockhide_grazer", "D", rng(1))
+	check(dr.fight.is_empty() and not dart.items.has("Sedative Dart") and dart.karma == 48, "Sedative Dart calms the grazer without a fight")
+	# การต่อสู้จริงจบได้ทุกแบบ (AI)
+	var ok := true
+	for id in ["raider_checkpoint", "pit_duelist", "snared_stalker", "rockhide_grazer"]:
+		for lv in [1, 5]:
+			var q := PlayerStats.new()
+			q.gain_exp(_exp_to(lv))
+			q.hp = q.max_hp()
+			var rq := EventRunner.resolve(q, id, "C" if id != "pit_duelist" else "A", rng(lv))
+			var s := CCBattle.create_battle(CCBridge.config(q, rq.fight.monster, lv, rq.fight.opts))
+			var n := 0
+			while s.result == "" and n < 300:
+				s = CCBattle.apply_action(s, CCAi.choose(s)).state
+				n += 1
+			ok = ok and s.result != ""
+	check(ok, "event fights finish with the AI at Lv 1 and 5")
+
+
+func _exp_to(lv: int) -> int:
+	var total := 0
+	for l in range(1, lv):
+		total += GameData.EXP_TO_LEVEL * l
+	return total
+
+
 func _save() -> void:
 	section("save v2")
 	var s := GameState.new()
@@ -227,13 +328,14 @@ func _save() -> void:
 	p.remember_step(Vector2i(1, 2))
 	p.coupons = {"concord": 2}
 	p.recent_events.assign(["ion_storm"])
+	p.ally_turns = 1
 	var d := SaveGame.to_dict(s)
 	var s2 := GameState.new()
 	check(SaveGame.apply(s2, JSON.parse_string(JSON.stringify(d))), "v2 save loads through JSON")
 	eq(var_to_str(s2.player.to_dict()), var_to_str(p.to_dict()), "faction/event fields round-trip")
 	var old := d.duplicate(true)
 	old.version = 1
-	for k in ["karma", "syndicate", "renown", "scrip", "fatigue", "skip_turns", "trail", "coupons", "recent_events"]:
+	for k in ["karma", "syndicate", "renown", "scrip", "fatigue", "skip_turns", "trail", "coupons", "recent_events", "ally_turns"]:
 		old.player.erase(k)
 	var s3 := GameState.new()
 	check(SaveGame.apply(s3, old), "v1 save still loads")
@@ -262,6 +364,9 @@ func _fuzz() -> void:
 			if EventRunner.availability(p, o).ok:
 				var res := EventRunner.resolve(p, id, o.key, r)
 				ok = ok and not res.lines.is_empty()
+				if not res.fight.is_empty():
+					ok = ok and GameData.MONSTERS.has(res.fight.monster)
+					EventRunner.after_fight(p, res.fight, ["win", "lose", "run"][r.randi_range(0, 2)], r)
 		ok = ok and p.hp >= 1 and p.gold >= 0 and p.gear.size() <= GameData.MAX_GEAR and p.items.size() <= GameData.MAX_ITEMS
 	check(ok, "300 random players run every available option safely")
 	var seen := {}

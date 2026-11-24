@@ -85,13 +85,26 @@ func run_event(player: PlayerStats, event_id := "") -> void:
 			continue
 		var r := EventRunner.resolve(player, event_id, opt.key, rng)
 		_state.notify()
-		if not r.back_path.is_empty():
-			var points: Array[Vector3] = []
-			for c in r.back_path:
-				points.append(Board.tile_pos(c))
-			await _piece.move_along(points)
+		await _play_back(r.back_path)
 		await _dialogs.message("\n".join(r.lines))
+		if not r.fight.is_empty(): # อีเวนต์มีการต่อสู้: สู้จริง แล้วคิดผลชนะ/แพ้ของอีเวนต์
+			var result := await fight(player, r.fight.monster, r.fight)
+			var after := EventRunner.after_fight(player, r.fight, result, rng)
+			_state.notify()
+			await _play_back(after.back_path)
+			if not after.lines.is_empty():
+				await _dialogs.message("\n".join(after.lines))
 		return
+
+
+## เล่นแอนิเมชันถอยตามช่อง (ตำแหน่งผู้เล่นถูกเปลี่ยนไปแล้ว)
+func _play_back(path: Array) -> void:
+	if path.is_empty():
+		return
+	var points: Array[Vector3] = []
+	for c in path:
+		points.append(Board.tile_pos(c))
+	await _piece.move_along(points)
 
 
 # ================================================================ ต่อสู้
@@ -102,20 +115,25 @@ const COMBAT_SYSTEM := "check"
 
 
 ## ต่อสู้กับมอนสเตอร์ — คืนผล "win" / "lose" / "run"
-func fight(player: PlayerStats, monster_id: String) -> String:
+## ev (การต่อสู้จากอีเวนต์ ดู EventRunner._fight_request): "opts" (ปรับค่ามอนสเตอร์/บัฟ), "friendly" (แพ้ไม่ถูกส่งกลับปราสาท), "exp_mult"
+func fight(player: PlayerStats, monster_id: String, ev := {}) -> String:
 	if COMBAT_SYSTEM == "dice_duel":
 		return await _fight_dice_duel(player, monster_id)
 	var m: Dictionary = GameData.MONSTERS[monster_id]
 	var ui := CCBattleUI.new()
 	add_child(ui)
-	var final: Dictionary = await ui.start(CCBridge.config(player, monster_id, randi()), CCBridge.portraits(monster_id))
+	var final: Dictionary = await ui.start(CCBridge.config(player, monster_id, randi(), ev.get("opts", {})), CCBridge.portraits(monster_id))
 	ui.queue_free()
 	CCBridge.apply_result(player, final)
 	player.fatigue = 0 # Fatigue ใช้ไปกับการต่อสู้ครั้งนี้แล้ว
+	player.ally_turns = 0 # สัตว์พันธมิตรช่วยได้ครั้งเดียว
 	var result: String = final.result
 	match result:
 		"win":
-			await _victory(player, m)
+			await _victory(player, m, float(ev.get("exp_mult", 1.0)))
+		"lose" when ev.get("friendly", false):
+			player.hp = maxi(1, player.hp)
+			await _dialogs.message("You lost the duel. No hard feelings.")
 		"lose":
 			await _defeated(player)
 		_:
@@ -155,11 +173,12 @@ func _fight_dice_duel(player: PlayerStats, monster_id: String) -> String:
 	return result
 
 
-func _victory(player: PlayerStats, m: Dictionary) -> void:
+func _victory(player: PlayerStats, m: Dictionary, exp_mult := 1.0) -> void:
 	var gold: int = roundi(m.gold * player.gold_mult())
 	player.gold += gold
-	var ups := player.gain_exp(m.exp)
-	var text := "Victory! Got %d EXP and %d Gold." % [m.exp, gold]
+	var exp_gain := roundi(m.exp * exp_mult) # มินิบอสจากอีเวนต์ได้ EXP ×2
+	var ups := player.gain_exp(exp_gain)
+	var text := "Victory! Got %d EXP and %d Gold." % [exp_gain, gold]
 	if ups > 0:
 		text += "\nLEVEL UP! Now Lv %d." % player.level
 		text += "\n+%d Passive Point%s! Press Passive to spend." % [ups, "" if ups == 1 else "s"]
@@ -212,6 +231,7 @@ func _defeated(player: PlayerStats) -> void:
 	player.hp = maxi(1, int(player.max_hp() / 2.0))
 	player.tile = Board.CASTLE_TILE
 	player.came_from = Board.NO_TILE
+	player.trail.clear() # ถูกส่งกลับปราสาท ทางเดิมใช้ถอยไม่ได้แล้ว
 	_piece.position = Board.tile_pos(player.tile)
 	_piece.facing = Witch.Dir.DOWN
 	await _dialogs.message("You wake up at the castle... (lost %d Gold)" % lost)

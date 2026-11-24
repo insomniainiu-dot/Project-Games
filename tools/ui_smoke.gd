@@ -169,6 +169,19 @@ func _run() -> void:
 	te.run_event(p, "broken_span")
 	await _press(dialogs, "B.")
 	await _press(dialogs, "OK", "19_event_pushed_back")
+	# อีเวนต์ต่อสู้: เลือกสู้กับ Rockhide Grazer → เข้าหน้าต่อสู้จริง (ถ่ายรูปแล้วกดหนี)
+	te.run_event(p, "rockhide_grazer")
+	await _press(dialogs, "A.", "21_event_boss_options")
+	await _press(dialogs, "OK")
+	for i in 30:
+		await process_frame
+	await _shot("22_event_boss_battle")
+	var battle_ui: Node = te.get_children().filter(func(c): return c is CCBattleUI).front() if te.get_children().any(func(c): return c is CCBattleUI) else null
+	print("boss battle open: %s" % (battle_ui != null))
+	if battle_ui != null:
+		battle_ui.finished.emit(battle_ui.state) # ปิดการต่อสู้ (ผลยังไม่จบ = หนี)
+		for i in 10:
+			await process_frame
 	var hud2 := Hud.new()
 	root.add_child(hud2)
 	hud2.refresh(p, 4)

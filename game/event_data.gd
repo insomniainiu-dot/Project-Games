@@ -18,6 +18,28 @@ const CHECK_STAT_BASE := 6
 const CHECK_MIN := 5.0
 const CHECK_MAX := 95.0
 
+# ---------------------------------------------------------------- การต่อสู้จากอีเวนต์
+const FIGHT_LEVEL_SCALE := 0.1 ## มอนสเตอร์ในอีเวนต์แรงขึ้น 10% ต่อเลเวลผู้เล่น (HP/ATK/ARM/TEC)
+const MINI_BOSS_MULT := 1.5 ## มินิบอส: HP/ATK × ค่านี้ (ทับบนการปรับตามเลเวล)
+const ALLY_DAMAGE_BASE := 4 ## สัตว์พันธมิตรยิงตาละ BASE + เลเวล × PER_LEVEL (ไม่สนการป้องกัน แบบโดรน)
+const ALLY_DAMAGE_PER_LEVEL := 2
+const WILD_FIGHT := "wild" ## monster = "wild" → สุ่มจาก GameData.WILD_MONSTERS
+
+
+static func ally_damage(level: int) -> int:
+	return ALLY_DAMAGE_BASE + level * ALLY_DAMAGE_PER_LEVEL
+
+
+## ตัวคูณค่าพลังมอนสเตอร์ในอีเวนต์: เลเวลผู้เล่น × มินิบอส × power (HP/ATK) × อ่อนแรง (weak = {"atk": 0.7})
+static func fight_scale(level: int, boss: bool, weak := {}, power := 1.0) -> Dictionary:
+	var f := 1.0 + FIGHT_LEVEL_SCALE * (level - 1)
+	var b := (MINI_BOSS_MULT if boss else 1.0) * power
+	var out := {"hp": f * b, "atk": f * b, "def": f, "mag": f, "gold": f}
+	for k in weak:
+		out[k] = out.get(k, 1.0) * float(weak[k])
+	return out
+
+
 ## [รางวัลสุ่ม]: น้ำหนัก (ใบเควสยังไม่มี T-034 → นับเป็นไอเทม)
 const REWARD_WEIGHTS := {"credits": 35, "consumable": 40, "gear": 25}
 ## tier ของอุปกรณ์รางวัลตามเลเวล: [เลเวลขั้นต่ำ, {tier: น้ำหนัก}] — ใช้แถวสุดท้ายที่เลเวลถึง
@@ -36,6 +58,9 @@ const TIER_ORDER := ["common", "rare", "epic"]
 ##   roll    = {"chance": %, "effects": [...]} สุ่มเกิด (ความเสี่ยง / โบนัส) ไม่ใช้ค่าพลัง
 ## effects: ["karma", n] ["renown", n] ["scrip", n] ["fatigue", n] ["gold_pct", %, ขั้นต่ำ] ["lose_gold_pct", %, ขั้นต่ำ]
 ##   ["hp_pct", %] ["reward", n, เลื่อน tier] ["item", ชื่อ] ["back", n] ["skip", n] ["steal"] ["coupon", ฝ่าย]
+##   ["ally", ตา] = สัตว์พันธมิตรช่วยสู้ครั้งถัดไป
+##   ["fight", {monster ("wild" = สุ่ม), boss, power (HP/ATK ×), weak {"atk": 0.7}, hero_mods, friendly, exp_mult, win [...], lose [...]}]
+##     ต้องเป็น effect สุดท้ายของชุด · friendly = แพ้ไม่ถูกส่งกลับปราสาท · แพ้จริงจัง "back" ใน lose ถูกข้าม
 ## weight = น้ำหนักสุ่ม (ไม่ใส่ = 10)
 const EVENTS := {
 	"stalled_crawler": {
@@ -158,6 +183,69 @@ const EVENTS := {
 				"roll": {"chance": 30, "effects": [["back", 2]]}},
 			{"key": "D", "need": "concord", "label": "Bless the harvest for the Concord",
 				"effects": [["karma", 2], ["hp_pct", 25], ["item", "Medkit"], ["coupon", "concord"]]},
+		],
+	},
+	# ---- อีเวนต์ที่มีการต่อสู้ (ขั้น 2)
+	"raider_checkpoint": {
+		"title": "Raider Checkpoint",
+		"text": "Armed raiders have blocked the road with a scrap barricade. \"Toll's due.\"",
+		"options": [
+			{"key": "A", "label": "Pay the toll", "cost": [["lose_gold_pct", 10, 1]]},
+			{"key": "B", "label": "Talk them down",
+				"check": {"base": 50, "stat": "lck", "pass": [], "fail": [["lose_gold_pct", 10, 1], ["skip", 1]]}},
+			{"key": "C", "label": "Fight your way through",
+				"effects": [["fight", {"power": 1.4, "win": [["karma", 1], ["reward", 1]], "lose": [["steal"]]}]]}, # โจรติดอาวุธ แข็งกว่ามอนสเตอร์ป่า
+			{"key": "D", "need": "syndicate", "label": "Flash your Syndicate code", "effects": [["karma", -1], ["gold_pct", 10, 1]]},
+		],
+	},
+	"pit_duelist": {
+		"title": "Pit Duelist",
+		"text": "A scarred fighter blocks the path, grinning. \"Friendly bout? Loser pays.\"",
+		"options": [
+			{"key": "A", "label": "Accept the duel",
+				"effects": [["fight", {"friendly": true, "win": [["gold_pct", 10, 1]], "lose": [["lose_gold_pct", 10, 1]]}]]},
+			{"key": "B", "label": "Decline"},
+			{"key": "C", "label": "Spike their drink first", "effects": [["karma", -2], ["gold_pct", 10, 1], ["reward", 1]],
+				"roll": {"chance": 20, "effects": [["skip", 1], ["steal"]]}},
+			{"key": "D", "need": "concord", "label": "Invite them to the Concord", "effects": [["karma", 2], ["item", "Beacon Relic"]]},
+		],
+	},
+	"silent_hab": {
+		"title": "Silent Hab Module",
+		"text": "An abandoned habitat module. Something inside is still sending a signal.",
+		"options": [
+			{"key": "A", "label": "Search it carefully", "effects": [["fatigue", 2], ["reward", 1]],
+				"check": {"base": 40, "stat": "lck", "pass": [], "fail": [["fight", {"win": [["back", 2]]}]]}},
+			{"key": "B", "label": "Walk past"},
+			{"key": "C", "label": "Torch it and pick the remains", "effects": [["karma", -1], ["reward", 1], ["skip", 1]]},
+			{"key": "D", "need": "freeport", "label": "Buy the Guild's floor plan", "cost": [["scrip", 3]],
+				"effects": [["reward", 2], ["renown", 1]]},
+		],
+	},
+	"snared_stalker": {
+		"title": "Snared Dust Stalker",
+		"text": "A dust stalker lies caught in an electric snare, growling weakly at you.",
+		"options": [
+			{"key": "A", "label": "Treat its wounds", "cost": [["use_item", "Medkit"]],
+				"effects": [["karma", 2], ["ally", 1]], "alt": [["fatigue", 2], ["karma", 2], ["ally", 1]]},
+			{"key": "B", "label": "Walk past"},
+			{"key": "C", "label": "Finish it for its hide",
+				"effects": [["karma", -2], ["fight", {"monster": "Dust Stalker", "weak": {"atk": 0.7}, "win": [["reward", 1]]}]]},
+			{"key": "D", "need": "concord", "label": "Use a Beacon field kit", "effects": [["karma", 2], ["reward", 1]]},
+		],
+	},
+	"rockhide_grazer": {
+		"title": "Rockhide Grazer",
+		"text": "A huge rockhide grazer is trampling the hydroponic farms. The farmers beg for help.",
+		"weight": 5, # มินิบอส นาน ๆ เจอ
+		"options": [
+			{"key": "A", "label": "Defend the farms",
+				"effects": [["fight", {"monster": "Rockhide Grazer", "boss": true, "exp_mult": 2, "win": [["karma", 3], ["reward", 2]]}]]},
+			{"key": "B", "label": "Walk past"},
+			{"key": "C", "label": "Hunt it with a poacher", "effects": [["karma", -2],
+				["fight", {"monster": "Rockhide Grazer", "boss": true, "hero_mods": {"attack_mult": 1.2}, "win": [["reward", 3]]}]]},
+			{"key": "D", "need": "concord", "label": "Fire a Sedative Dart", "cost": [["use_item", "Sedative Dart"]],
+				"effects": [["karma", 3], ["reward", 2]]},
 		],
 	},
 	"ion_storm": {
