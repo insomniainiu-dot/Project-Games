@@ -78,6 +78,52 @@ func visit_faction_shop(player: PlayerStats, shop: String, secret := false) -> v
 			"\nIt bears the %s mark. You lost %d HP." % ["Syndicate" if shop == "syndicate" else "Concord", FactionShop.CROSS_HP_COST] if r.marked else ""])
 
 
+## Fabricator: ตีบวก (Overclock) อุปกรณ์ที่สวม/ในกระเป๋า — venue = "concord" / "syndicate" / "smithy"
+func visit_fabricator(player: PlayerStats, venue: String) -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.randomize()
+	while true:
+		var gear: Array = player.all_gear().filter(func(it): return Overclock.can_overclock(it))
+		if gear.size() > 8: # รายการยาวเกินจอ (648px): ให้เลือกกลุ่มก่อน
+			var equipped: Array = gear.filter(func(it): return it == player.weapon or it == player.armor or it == player.accessory)
+			var group := await _dialogs.choose("%s - which gear?" % Overclock.VENUES[venue],
+				["Equipped (%d)" % equipped.size(), "Gear bag (%d)" % (gear.size() - equipped.size()), "Leave"])
+			if group == 2:
+				return
+			gear = equipped if group == 0 else gear.filter(func(it): return not equipped.has(it))
+		var labels: Array = []
+		for it in gear:
+			labels.append("%s  ->  +%d   %d%%   %dG" % [GameData.display_name(it), ItemDB.plus_of(it) + 1,
+				Overclock.chance(player, it, venue), Overclock.cost(it)])
+		labels.append("Leave")
+		var bonus := ""
+		if venue != "smithy":
+			bonus = "  (%s: %+d%% chance)" % ["your faction" if player.faction() == venue else "rival faction",
+				Overclock.VENUE_BONUS if player.faction() == venue else -Overclock.VENUE_BONUS]
+		var pick := await _dialogs.choose("%s - Gold %d%s\nFail = drops 1 level. %s: %d" % [Overclock.VENUES[venue], player.gold, bonus,
+			Overclock.STABILIZER, player.items.count(Overclock.STABILIZER)], labels)
+		if pick >= gear.size():
+			return
+		var item: String = gear[pick]
+		var opts := ["Overclock", "Cancel"]
+		if player.items.has(Overclock.STABILIZER) and ItemDB.plus_of(item) > 0:
+			opts = ["Overclock", "Overclock with %s" % Overclock.STABILIZER, "Cancel"]
+		var confirm := await _dialogs.choose("Overclock %s to +%d?\n%d%% success, costs %dG.\nOn failure: %s." % [GameData.display_name(item),
+			ItemDB.plus_of(item) + 1, Overclock.chance(player, item, venue), Overclock.cost(item),
+			"stays +0" if ItemDB.plus_of(item) == 0 else "drops to +%d" % (ItemDB.plus_of(item) - 1)], opts)
+		if confirm == opts.size() - 1:
+			continue
+		var r := Overclock.attempt(player, item, venue, confirm == 1, rng)
+		_state.notify()
+		if not r.ok:
+			await _dialogs.message(r.reason)
+		elif r.success:
+			await _dialogs.message("SUCCESS! %s\n%s" % [GameData.display_name(r.id), GameData.stat_text(r.id)])
+		else:
+			await _dialogs.message("The Fabricator sparks and whines... failed.\n%s%s" % [GameData.display_name(r.id),
+				" (the Stabilizer held the level)" if r.stabilized else (" dropped to +%d" % r.plus if r.old_plus > 0 else " (still +0)")])
+
+
 ## Freeport Exchange — ซื้อด้วย Scrip
 func visit_exchange(player: PlayerStats) -> void:
 	var keys: Array = FactionShop.EXCHANGE_STOCK.keys()
@@ -98,7 +144,7 @@ func visit_exchange(player: PlayerStats) -> void:
 func visit_smithy(player: PlayerStats) -> void:
 	var text := "Smithy \"Iron & Ember\"\n\"Welcome, traveler! Gold for steel - fair and square.\""
 	while true:
-		var pick := await _dialogs.choose("%s\nYou have %d Gold." % [text, player.gold], ["Buy", "Sell", "Equip", "Leave"])
+		var pick := await _dialogs.choose("%s\nYou have %d Gold." % [text, player.gold], ["Buy", "Sell", "Equip", "Overclock", "Leave"])
 		match pick:
 			0:
 				await _smithy_buy(player)
@@ -107,6 +153,8 @@ func visit_smithy(player: PlayerStats) -> void:
 			2:
 				await _equip_window.open(player)
 				_state.notify()
+			3:
+				await visit_fabricator(player, "smithy")
 			_:
 				return
 		text = "Smithy \"Iron & Ember\"\n\"Anything else?\""

@@ -19,6 +19,7 @@ func _init() -> void:
 	_fights()
 	_shops()
 	_debts()
+	_overclock()
 	_save()
 	_fuzz()
 	print("\nEvent tests: %d passed, %d failed" % [_passed, _failed])
@@ -418,6 +419,88 @@ func _debts() -> void:
 	s.add_karma(-30)
 	var o := EventRunner.resolve(s, "fugitive_signal", "D", rng(1))
 	eq(o.open_shop, "syndicate", "smuggling opens the secret Syndicate Market")
+
+
+func _overclock() -> void:
+	section("overclock (step 4)")
+	# Common ที่สวมอยู่ → แปลงเป็น instance แล้ว id ในช่องเปลี่ยนตาม
+	var p := PlayerStats.new()
+	p.gold = 100000
+	p.add_gear("Plasma Blade")
+	p.equip("Plasma Blade")
+	var atk0 := p.stat("atk")
+	eq(Overclock.chance(p, "Plasma Blade", "smithy"), 85, "+1 at the Smithy: 85%")
+	eq(Overclock.chance(p, "Plasma Blade", "concord"), 95, "own-faction Fabricator: +15% (capped 95)")
+	eq(Overclock.chance(p, "Plasma Blade", "syndicate"), 70, "rival Fabricator: -15%")
+	eq(Overclock.cost("Plasma Blade"), roundi(110 * 0.2), "+1 costs 20% of the price")
+	var r := {}
+	var seed := 0
+	while true: # หา seed ที่สำเร็จ
+		var probe := PlayerStats.new()
+		probe.gold = 100000
+		probe.add_gear("Plasma Blade")
+		probe.equip("Plasma Blade")
+		r = Overclock.attempt(probe, "Plasma Blade", "smithy", false, rng(seed))
+		if r.success:
+			p = probe
+			break
+		seed += 1
+	check(r.ok and r.plus == 1 and ItemDB.is_instance(r.id) and p.weapon == r.id, "success: promoted to an instance, still equipped")
+	eq(p.stat("atk"), atk0 + 1, "+1: ATK 6 -> 7 (10%, at least +1)")
+	eq(GameData.display_name(r.id), "Plasma Blade +1", "name shows +1")
+	check(p.owns("Plasma Blade"), "still counts as owning the base item")
+	eq(GameData.sell_price(r.id), int(roundi(110 * 1.1) * GameData.SELL_RATE), "sells for 10% more")
+	# ล้มเหลว = ลด 1 ระดับ / ตีจาก +0 = คงเดิม / Stabilizer กันลด
+	eq(Overclock.fail_plus(0, false), 0, "fail at +0 stays +0")
+	eq(Overclock.fail_plus(3, false), 2, "fail at +3 drops to +2")
+	eq(Overclock.fail_plus(3, true), 3, "Phase Stabilizer holds the level")
+	var id: String = r.id
+	ItemDB.set_plus(id, 3)
+	p.items.assign([Overclock.STABILIZER])
+	var fails := 0
+	var drops_ok := true
+	for s in 60:
+		ItemDB.set_plus(id, 3)
+		var use := s % 2 == 0
+		if use:
+			p.items.assign([Overclock.STABILIZER])
+		var rr := Overclock.attempt(p, id, "smithy", use, rng(s))
+		if not rr.success:
+			fails += 1
+			drops_ok = drops_ok and rr.plus == (3 if use else 2)
+	check(fails > 0 and drops_ok, "failures drop 1 level, or hold with a Stabilizer (%d fails)" % fails)
+	# ค่าพลังเพิ่มตามระดับ
+	ItemDB.set_plus(id, 5)
+	eq(GameData.item(id).atk, 6 + 5, "+5: ATK 6 -> 11 (at least +1 per level)")
+	var big := ItemDB.create("Gravity Hammer", "rare", rng(9))
+	var batk: int = GameData.item(big).atk
+	ItemDB.set_plus(big, 2)
+	eq(GameData.item(big).atk, batk + maxi(2, ceili(batk * 0.2)), "+2: +20% on big stats")
+	check(not Overclock.can_overclock(id), "can't go past +5")
+	check(not Overclock.attempt(p, id, "smithy", false, rng(1)).ok, "attempt refused at +5")
+	# Unique ก็ตีได้ ชื่อยังเป็น ★
+	var u := PlayerStats.new()
+	u.gold = 100000
+	u.add_gear("Voidreaver")
+	var ur := Overclock.attempt(u, "Voidreaver", "smithy", false, rng(0))
+	check(ur.ok and GameData.rarity(ur.id) == "unique" and GameData.display_name(ur.id).begins_with("★ Voidreaver") and u.gear.has(ur.id), "uniques can be overclocked")
+	check(u.owns("Voidreaver"), "an overclocked unique still blocks a duplicate drop")
+	# เงินไม่พอ / ไม่มีของ
+	var poor := PlayerStats.new()
+	poor.gold = 0
+	check(not Overclock.attempt(poor, poor.weapon, "smithy", false, rng(1)).ok, "no gold = no overclock")
+	check(not Overclock.attempt(PlayerStats.new(), "Exo Frame", "smithy", false, rng(1)).ok, "can't overclock gear you don't own")
+	check(FactionShop.EXCHANGE_STOCK.has(Overclock.STABILIZER) and GameData.ITEMS.has(Overclock.STABILIZER), "Phase Stabilizer is sold at the Exchange")
+	# เซฟ
+	var s := GameState.new()
+	s.player.gold = 100000
+	s.player.add_gear("Mesh Armor")
+	var sr := Overclock.attempt(s.player, "Mesh Armor", "smithy", false, rng(0))
+	ItemDB.set_plus(sr.id, 4)
+	var d: Dictionary = JSON.parse_string(JSON.stringify(SaveGame.to_dict(s)))
+	ItemDB._instances.erase(sr.id)
+	SaveGame.apply(GameState.new(), d)
+	eq(ItemDB.plus_of(sr.id), 4, "overclock level survives save/load")
 
 
 func _exp_to(lv: int) -> int:

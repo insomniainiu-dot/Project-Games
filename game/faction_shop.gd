@@ -29,7 +29,7 @@ const STOCK_TIERS := [
 ]
 ## Freeport Exchange: ราคาเป็น Scrip · คีย์ = ไอเทมใน GameData.ITEMS หรือ Skill Gem ใน CCBalance.GEMS
 const EXCHANGE_STOCK := {
-	"Sedative Dart": 2, "Big Medkit": 2, "Smoke Bomb": 1, "Stim Shot": 2,
+	"Sedative Dart": 2, "Phase Stabilizer": 3, "Big Medkit": 2, "Smoke Bomb": 1, "Stim Shot": 2,
 	"charged_shot": 6, "twin_stab": 6, "deploy_drone": 7, "fireball": 7, "heavy_blow": 6,
 }
 const EXCHANGE_RENOWN_DISCOUNT := 20 ## Renown ถึงเท่านี้ ลด 1 Scrip ต่อชิ้น (ขั้นต่ำ 1)

@@ -79,9 +79,35 @@ static func restore(id: String, rec: Dictionary) -> void:
 	var r := rec.duplicate(true)
 	for a in r.get("affixes", []):
 		a.value = int(a.value) # JSON เก็บตัวเลขเป็น float
+	if r.has("plus"):
+		r.plus = int(r.plus)
 	_instances[id] = r
 	var n := int(id.get_slice("#", 1))
 	_next = maxi(_next, n + 1)
+
+
+## ทำให้ไอเทมเป็น instance (Common / Unique ที่เป็นแค่ชื่อ) เพื่อเก็บค่าเฉพาะชิ้น เช่น ระดับ Overclock
+## ของที่เป็น instance อยู่แล้วคืน id เดิม · ไอเทมที่ไม่ใช่อุปกรณ์คืน id เดิม
+static func promote(id: String) -> String:
+	if _instances.has(id) or not GameData.ITEMS.has(id) or GameData.ITEMS[id].get("type", "") == "use":
+		return id
+	return register({"base": id, "tier": GameData.ITEMS[id].get("rarity", "common"), "affixes": []})
+
+
+## ราคาตาม tier ไม่รวม Overclock (ใช้คิดค่า Overclock)
+static func base_price(id: String) -> int:
+	var b := base_of(id)
+	var tier: String = record(id).get("tier", GameData.ITEMS.get(b, {}).get("rarity", "common"))
+	return roundi(int(GameData.ITEMS.get(b, {}).get("price", 0)) * float(TIERS.get(tier, TIERS.common).price_mult))
+
+
+static func plus_of(id: String) -> int:
+	return int(record(id).get("plus", 0))
+
+
+static func set_plus(id: String, n: int) -> void:
+	if _instances.has(id):
+		_instances[id].plus = n
 
 
 ## สุ่ม tier ตาม DROP_TIER_WEIGHTS แล้วสุ่มฐานจากของในร้าน Smithy
@@ -122,6 +148,14 @@ static func data(id: String) -> Dictionary:
 		else:
 			var v = (1.0 + a.value / 100.0) if def.get("pct_mult", false) else a.value
 			mods = CCBalance.merge_mods(mods, {def.mod: v})
+	var plus := int(rec.get("plus", 0))
+	if plus > 0: # Overclock: ค่าพลังบวกทุกตัว +STAT_PCT% ต่อระดับ (ปัดขึ้น อย่างน้อย +1 ต่อระดับ)
+		for k in GameData.STAT_KEYS:
+			var v := int(out.get(k, 0))
+			if v > 0:
+				out[k] = v + maxi(plus, ceili(v * Overclock.STAT_PCT * plus / 100.0))
+		out.plus = plus
+		out.price = roundi(out.price * (1.0 + Overclock.PRICE_PCT_PER_PLUS * plus / 100.0)) # ขายได้แพงขึ้น
 	var mark: String = rec.get("mark", "")
 	if mark != "": # ตราข้ามฝ่าย (ซื้อจากร้านฝ่ายตรงข้าม) — ดู FactionShop
 		mods = CCBalance.merge_mods(mods, {"attack_mult": FactionShop.MARK_ATTACK_MULT})

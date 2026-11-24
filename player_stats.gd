@@ -328,8 +328,25 @@ func all_gear() -> Array:
 	return out
 
 
+## มีไอเทมนี้ไหม — ถามด้วยชื่อฐาน (เช่น Unique) จะนับชิ้นที่ถูกแปลงเป็น instance แล้วด้วย (Overclock)
 func owns(item: String) -> bool:
-	return gear.has(item) or item == weapon or item == armor or item == accessory
+	for e in all_gear():
+		if e == item or ItemDB.base_of(e) == item:
+			return true
+	return false
+
+
+## เปลี่ยน id ของชิ้นที่มีอยู่ (สวมหรือในกระเป๋า) เป็น id ใหม่ — ใช้ตอน Overclock แปลงเป็น instance
+func replace_gear(old_id: String, new_id: String) -> void:
+	if old_id == new_id:
+		return
+	for slot in SLOTS:
+		if equipped(slot) == old_id:
+			_set_slot(slot, new_id)
+			return
+	var i := gear.find(old_id)
+	if i >= 0:
+		gear[i] = new_id
 
 
 func add_gear(item: String) -> bool:

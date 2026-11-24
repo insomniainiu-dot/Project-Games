@@ -337,6 +337,8 @@ func _visit_free_town(player: PlayerStats, town: Dictionary) -> void:
 		if fac != "":
 			opts.append(FactionShop.SHOP_NAMES[fac])
 			acts.append(fac)
+			opts.append(Overclock.VENUES[fac])
+			acts.append("fabricator")
 		opts.append(FactionShop.SHOP_NAMES.freeport)
 		acts.append("freeport")
 		opts.append("Leave")
@@ -345,6 +347,8 @@ func _visit_free_town(player: PlayerStats, town: Dictionary) -> void:
 			return
 		if acts[pick] == "freeport":
 			await _shops.visit_exchange(player)
+		elif acts[pick] == "fabricator":
+			await _shops.visit_fabricator(player, fac)
 		else:
 			await _shops.visit_faction_shop(player, acts[pick])
 		_state.notify()

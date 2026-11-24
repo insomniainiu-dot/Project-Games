@@ -72,6 +72,7 @@ const ITEMS := {
 	"Smoke Bomb": {"type": "use", "battle": "any", "price": 25, "escape": true, "desc": "Escape a battle for sure. (Battle: any turn)"},
 	# ใช้ในอีเวนต์ (EventData cost "use_item") — ใช้ในการต่อสู้ไม่ได้
 	"Sedative Dart": {"type": "use", "event_item": true, "price": 40, "desc": "Calms a rampaging beast without a fight. (Used in events)"},
+	"Phase Stabilizer": {"type": "use", "fabricator_item": true, "price": 60, "desc": "Use when overclocking: a failure won't drop the level. (Used at a Fabricator)"},
 	# อาวุธ — weapon_type กำหนดท่า Attack (CCBalance.WEAPON_TYPES)
 	# อาวุธเริ่มต้นของแต่ละอาชีพ (JOBS "start_weapon") ราคา 0 ไม่ขายในร้าน · ค่าพลังรวม 3 เท่ากันทุกชิ้น
 	"Service Baton": {"type": "weapon", "weapon_type": "melee", "price": 0, "atk": 3, "desc": "Standard-issue shock baton."},
@@ -209,12 +210,16 @@ static func unique_items() -> Array:
 
 ## ชื่อที่แสดง: Unique = "★ ชื่อ", Rare/Epic = "◆ ชื่อฐาน (Rare)"
 static func display_name(item_id: String) -> String:
+	var base := ItemDB.base_of(item_id)
+	var plus := ItemDB.plus_of(item_id)
+	if plus > 0: # Overclock
+		base += " +%d" % plus
 	match rarity(item_id):
 		"unique":
-			return "★ " + item_id
+			return "★ " + base
 		"rare", "epic":
-			return "◆ %s (%s)" % [ItemDB.base_of(item_id), ItemDB.TIERS[rarity(item_id)].name]
-	return item_id
+			return "◆ %s (%s)" % [base, ItemDB.TIERS[rarity(item_id)].name]
+	return base
 
 
 ## รายละเอียดพิเศษทีละบรรทัด: Unique = ข้อดี (+) / ข้อเสีย (-), Rare/Epic = affix ("" = ไม่มี)
