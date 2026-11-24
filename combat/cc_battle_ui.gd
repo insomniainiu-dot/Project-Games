@@ -160,11 +160,12 @@ func _refresh() -> void:
 		var dmg_text := "dmg %d-%d" % [lo, hi * (2 if d.perfect.has("double") else 1)]
 		if d.kind == "drone":
 			dmg_text = "drone %d/turn x%d" % [CCBattle.drone_damage(hero), CCBattle.drone_turns(hero, false)]
-		var extras := ""
+		var costs := PackedStringArray()
 		if cost > 0:
-			extras += "  [costs %d Focus]" % cost
+			costs.append("%d Focus" % cost)
 		if d.get("hp_cost", 0.0) > 0.0:
-			extras += "  [costs %d HP]" % ceili(hero.max_hp * d.hp_cost)
+			costs.append("%d HP" % ceili(hero.max_hp * d.hp_cost))
+		var extras := "  [costs %s]" % " + ".join(costs) if not costs.is_empty() else ""
 		if d.get("drain", 0.0) > 0.0:
 			extras += "  [heals %d%% of damage]" % roundi(d.drain * 100)
 		var text := "%s%-13s %s  %d%%   %s%s   Perfect: %s" % ["★ " if hero.get("granted", []).has(skill) else "", d.name, "◯".repeat(n),
@@ -480,8 +481,10 @@ func _make_card(i: int) -> Dictionary:
 	hp.add_theme_stylebox_override("fill", fill)
 	box.add_child(hp)
 	var info := _label(15, Color.WHITE)
+	info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART # สถานะยาว ๆ ตัดบรรทัดแทนดันการ์ดล้นจอ
 	box.add_child(info)
 	var stats := _label(13, MUTED)
+	stats.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	box.add_child(stats)
 	return {"root": root, "pic": pic, "title": title, "hp": hp, "info": info, "stats": stats}
 

@@ -15,6 +15,7 @@ func _init() -> void:
 	panel.offset_left = -290
 	panel.offset_right = -16
 	panel.offset_top = 16
+	panel.grow_horizontal = Control.GROW_DIRECTION_BEGIN # ข้อความยาว (ชื่อ Rare/Epic, gem) ขยายไปทางซ้าย ไม่ล้นจอ
 	add_child(panel)
 	var box := VBoxContainer.new()
 	panel.add_child(box)

@@ -173,7 +173,7 @@ func _preview_equip(item: String) -> void:
 	var data := GameData.item(item)
 	var cur := player.equipped(data.type)
 	var atk := GameData.weapon_attack_text(item)
-	var uq := GameData.item_lines(item)
+	var uq := GameData.item_lines(item).replace("\n", "   ") # affix ต่อกันบรรทัดเดียว (ประหยัดความสูง)
 	_info.text = "%s  [%s]  %s - %s%s\n%s%s" % [
 		GameData.display_name(item), GameData.SLOT_NAMES[data.type], GameData.stat_text(item), data.desc, "  " + atk if atk != "" else "",
 		uq + "\n" if uq != "" else "", "Replaces: %s" % GameData.display_name(cur) if cur != "" else "Slot is empty.",
@@ -190,7 +190,7 @@ func _preview_remove(slot: String) -> void:
 	for k in GameData.STAT_KEYS:
 		vals[k] = player.preview_remove_stat(k, slot)
 	_show_stats(vals)
-	var uq := GameData.item_lines(cur)
+	var uq := GameData.item_lines(cur).replace("\n", "   ")
 	_info.text = "%s - %s\n%sClick to remove it (goes to your gear bag)." % [GameData.display_name(cur), GameData.item(cur).desc, uq + "\n" if uq != "" else ""]
 
 
@@ -220,7 +220,7 @@ func _build() -> void:
 	add_child(panel)
 
 	var root := VBoxContainer.new()
-	root.add_theme_constant_override("separation", 12)
+	root.add_theme_constant_override("separation", 8)
 	panel.add_child(root)
 
 	_title = Label.new()
@@ -242,36 +242,43 @@ func _build() -> void:
 	for slot in PlayerStats.SLOTS:
 		var b := Button.new()
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
-		b.custom_minimum_size = Vector2(0, 56)
-		b.add_theme_font_size_override("font_size", 18)
+		b.custom_minimum_size = Vector2(0, 50)
+		b.add_theme_font_size_override("font_size", 17)
 		b.pressed.connect(_unequip.bind(slot), CONNECT_DEFERRED)
 		b.mouse_entered.connect(_preview_remove.bind(slot))
 		b.focus_entered.connect(_preview_remove.bind(slot))
 		left.add_child(b)
 		_slot_buttons[slot] = b
 	left.add_child(_section("Skill Gems  (click to remove)"))
+	var gem_row := HBoxContainer.new() # 2 ช่องในแถวเดียว ประหยัดความสูง (จอ 648)
+	gem_row.add_theme_constant_override("separation", 6)
+	left.add_child(gem_row)
 	for i in CCBalance.GEM_SLOTS:
 		var gb := Button.new()
 		gb.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		gb.custom_minimum_size = Vector2(0, 36)
-		gb.add_theme_font_size_override("font_size", 17)
+		gb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		gb.clip_text = true
+		gb.add_theme_font_size_override("font_size", 16)
 		gb.pressed.connect(_remove_gem.bind(i), CONNECT_DEFERRED)
 		gb.mouse_entered.connect(func() -> void:
 			if i < player.gems.size():
 				_preview_gem(player.gems[i]))
-		left.add_child(gb)
+		gem_row.add_child(gb)
 		_gem_buttons.append(gb)
 	left.add_child(_section("Stats"))
 	var grid := GridContainer.new()
-	grid.columns = 2
-	grid.add_theme_constant_override("h_separation", 28)
+	grid.columns = 6 # ชื่อ/ค่า 3 คู่ต่อแถว
+	grid.add_theme_constant_override("h_separation", 14)
 	for k in GameData.STAT_KEYS:
 		var key_label := Label.new()
 		key_label.text = STAT_NAMES[k]
-		key_label.add_theme_font_size_override("font_size", 19)
+		key_label.add_theme_font_size_override("font_size", 17)
+		key_label.add_theme_color_override("font_color", Color(0.75, 0.72, 0.8))
 		grid.add_child(key_label)
 		var val := Label.new()
-		val.add_theme_font_size_override("font_size", 19)
+		val.add_theme_font_size_override("font_size", 17)
+		val.custom_minimum_size = Vector2(62, 0)
 		grid.add_child(val)
 		_stat_labels[k] = val
 	left.add_child(grid)
