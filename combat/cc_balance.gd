@@ -58,9 +58,9 @@ const ACTIONS := {
 	"deploy_drone": {"name": "Deploy Drone", "slots": 2, "check": "mag", "power": "", "mult": 0.0, "kind": "drone", "perfect": ["long_drone"], "cost": 1},
 	# ---- ท่าติดอาวุธ Unique (ไม่ต้องใช้ช่อง gem — ถืออาวุธก็ได้ท่าเลย ดู ITEMS "grants")
 	## drain = ฟื้น HP ตามสัดส่วนดาเมจที่ทำได้ · hp_cost = จ่าย HP (สัดส่วน Max HP) ตอนใช้ ไม่ทำให้ตาย (เหลืออย่างน้อย 1)
-	"blood_siphon": {"name": "Blood Siphon", "slots": 3, "check": "atk", "power": "atk", "mult": 1.2, "kind": "phys", "perfect": ["crit"], "cost": 0, "drain": 0.5},
+	"blood_siphon": {"name": "Blood Siphon", "slots": 3, "check": "atk", "power": "atk", "mult": 1.35, "kind": "phys", "perfect": ["crit"], "cost": 0, "drain": 0.5},
 	"singularity": {"name": "Singularity", "slots": 4, "check": "mag", "power": "mag", "mult": 2.4, "kind": "magic", "perfect": ["pierce", "stun"], "cost": 2, "hp_cost": 0.1},
-	"ricochet": {"name": "Ricochet", "slots": 3, "check": "spd", "power": "atk", "mult": 1.2, "kind": "phys", "perfect": ["double"], "cost": 0},
+	"ricochet": {"name": "Ricochet", "slots": 3, "check": "spd", "power": "atk", "mult": 1.4, "kind": "phys", "perfect": ["double"], "cost": 0},
 	"flee": {"name": "Flee", "slots": 1, "check": "spd", "power": "", "mult": 0.0, "kind": "flee", "perfect": [], "cost": 0},
 }
 const PERFECT_TEXT := {
@@ -99,8 +99,8 @@ const JOB_SKILL := {
 const DEFAULT_WEAPON_TYPE := "melee"
 const WEAPON_TYPES := {
 	"melee": {"name": "Melee", "attack": {"name": "Strike"}}, # = ACTIONS.attack: 3 ช่อง ATK, Perfect คริ
-	"heavy": {"name": "Heavy", "attack": {"name": "Cleave", "slots": 4, "mult": 1.55}},
-	"bow": {"name": "Bow", "attack": {"name": "Quick Shot", "slots": 2, "check": "spd", "mult": 1.3, "perfect": ["pierce"]}},
+	"heavy": {"name": "Heavy", "attack": {"name": "Cleave", "slots": 4, "mult": 1.4}},
+	"bow": {"name": "Bow", "attack": {"name": "Quick Shot", "slots": 2, "check": "spd", "mult": 1.45, "perfect": ["pierce"]}},
 	"rod": {"name": "Psi Rod", "attack": {"name": "Psi Bolt", "check": "mag", "power": "mag", "mult": 1.3, "kind": "magic"}},
 }
 
@@ -118,14 +118,28 @@ const GEMS := {
 }
 
 
-## รวม mods 2 ชุด (Passive + อาวุธ Unique): คีย์ลงท้าย _mult คูณกัน, ตัวเลขอื่นบวกกัน, ค่าอื่นทับ
+## คีย์ mods ที่เป็นค่า "แทนที่" ค่าพื้นฐาน (เช่น Breacher: คริ x1.5 → x1.8) — รวมกันแล้วเอาค่าที่มากกว่า ไม่บวก/คูณ
+const OVERRIDE_MODS := ["crit_mult.", "counter_mult", "block_cut", "dodge_penalty"]
+
+
+static func _is_override_mod(key: String) -> bool:
+	for p in OVERRIDE_MODS:
+		if key.begins_with(p):
+			return true
+	return false
+
+
+## รวม mods 2 ชุด (Passive + อุปกรณ์): ค่าแทนที่ (OVERRIDE_MODS) เอาค่ามาก, คีย์ลงท้าย _mult คูณกัน, ตัวเลขอื่นบวกกัน, ค่าอื่นทับ
 static func merge_mods(a: Dictionary, b: Dictionary) -> Dictionary:
 	var out := a.duplicate()
 	for k in b:
 		var v = b[k]
 		var num: bool = typeof(v) == TYPE_INT or typeof(v) == TYPE_FLOAT
 		if out.has(k) and num and (typeof(out[k]) == TYPE_INT or typeof(out[k]) == TYPE_FLOAT):
-			out[k] = out[k] * v if String(k).ends_with("_mult") else out[k] + v
+			if _is_override_mod(k):
+				out[k] = maxf(out[k], v)
+			else:
+				out[k] = out[k] * v if String(k).ends_with("_mult") else out[k] + v
 		else:
 			out[k] = v
 	return out

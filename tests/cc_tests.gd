@@ -454,7 +454,7 @@ func _weapons_and_gems() -> void:
 	eq(CCBattle.defense_stat("block", "attack", a), "mag", "Block vs a rod Attack checks TEC")
 	eq(CCBattle.defense_stat("block", "attack"), "def", "Block vs a plain Attack still checks ARM")
 	a.attack_def = CCBalance.weapon_attack("bow")
-	eq(CCBattle.damage_for(a, unit(st(30, 0, 20, 6, 5)), "attack", 2), floori(10 * 1.3), "bow Perfect ignores ARM, no auto-crit")
+	eq(CCBattle.damage_for(a, unit(st(30, 0, 20, 6, 5)), "attack", 2), floori(10 * CCBalance.weapon_attack("bow").mult), "bow Perfect ignores ARM, no auto-crit")
 	# ในการต่อสู้
 	var hs := st(400, 100, 5, 5, 8)
 	var s := CCBattle.create_battle({"seed": 1, "hero": {"name": "H", "job": "Vanguard", "stats": hs, "attack_def": CCBalance.weapon_attack("heavy"), "gems": ["fireball"]},
@@ -499,6 +499,8 @@ func _uniques() -> void:
 	# merge mods: _mult คูณ, ตัวเลขบวก
 	var mm := CCBalance.merge_mods({"attack_mult": 0.6, "start_barrier": 5}, {"attack_mult": 1.3, "start_barrier": 12, "no_dodge": true})
 	check(is_equal_approx(mm.attack_mult, 0.78) and mm.start_barrier == 17 and mm.no_dodge, "merge_mods: x for _mult, + for numbers")
+	var mo := CCBalance.merge_mods({"crit_mult.attack": 1.8, "dodge_penalty": 0}, {"crit_mult.attack": 1.6, "dodge_penalty": -20})
+	check(is_equal_approx(mo["crit_mult.attack"], 1.8) and mo.dodge_penalty == 0, "merge_mods: override keys keep the better value")
 	# PlayerStats + bridge
 	var p := PlayerStats.new()
 	var hp0 := p.max_hp()

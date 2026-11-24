@@ -68,9 +68,9 @@ const ITEMS := {
 	"Oak Staff": {"type": "weapon", "weapon_type": "melee", "price": 0, "atk": 1, "mag": 2, "desc": "A plain staff."},
 	"Moon Rod": {"type": "weapon", "weapon_type": "rod", "price": 90, "atk": 2, "mag": 6, "desc": "A rod that glows under the moon."},
 	"Iron Blade": {"type": "weapon", "weapon_type": "melee", "price": 110, "atk": 6, "desc": "A sturdy iron sword."},
-	"Hunter Bow": {"type": "weapon", "weapon_type": "bow", "price": 150, "atk": 5, "spd": 3, "die_body": "quick", "desc": "Light and quick. (Quick die)"},
+	"Hunter Bow": {"type": "weapon", "weapon_type": "bow", "price": 150, "atk": 6, "spd": 3, "die_body": "quick", "desc": "Light and quick. (Quick die)"},
 	"Sun Staff": {"type": "weapon", "weapon_type": "rod", "price": 220, "atk": 3, "mag": 10, "die_rune": "spark", "desc": "Burns with solar magic. (Spark rune)"},
-	"War Axe": {"type": "weapon", "weapon_type": "heavy", "price": 260, "atk": 11, "spd": -1, "die_body": "heavy", "desc": "Heavy, but hits like a cart. (Heavy die)"},
+	"War Axe": {"type": "weapon", "weapon_type": "heavy", "price": 260, "atk": 9, "spd": -2, "die_body": "heavy", "desc": "Heavy, but hits like a cart. (Heavy die)"},
 	# อาวุธ Unique: ค่าตายตัว มีข้อดี + ข้อเสีย — ไม่ขายในร้าน ได้จากมอนสเตอร์ (MONSTERS "unique_chance")
 	#   mods = ผลพิเศษ (คีย์เดียวกับ PassiveTree mods รวมด้วย CCBalance.merge_mods)
 	#   grants = ท่าติดอาวุธ (ใช้ได้เลยโดยไม่กินช่อง gem) · pros / cons = ข้อความที่ผู้เล่นเห็น
