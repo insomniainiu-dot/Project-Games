@@ -179,9 +179,31 @@ func _run() -> void:
 	var battle_ui: Node = te.get_children().filter(func(c): return c is CCBattleUI).front() if te.get_children().any(func(c): return c is CCBattleUI) else null
 	print("boss battle open: %s" % (battle_ui != null))
 	if battle_ui != null:
-		battle_ui.finished.emit(battle_ui.state) # ปิดการต่อสู้ (ผลยังไม่จบ = หนี)
+		battle_ui.queue_free() # ปิดหน้าต่อสู้ (test ไม่ได้เล่นจนจบ)
 		for i in 10:
 			await process_frame
+	# ---- เมืองฝ่าย: ฝ่ายดีซื้อของร้าน Syndicate → ติดตรา → สวมแล้วเข้าเมือง Concord ไม่ได้
+	te._shops = shops
+	p.gold = 3000
+	while p.gear.size() > 5:
+		p.gear.remove_at(0)
+	var towns: Array = GameData.TOWNS.values()
+	var syn_town: Dictionary = towns.filter(func(t): return t.faction == "syndicate")[0]
+	var con_town: Dictionary = towns.filter(func(t): return t.faction == "concord")[0]
+	te._visit_free_town(p, syn_town)
+	await _press(dialogs, "OK")
+	await _press(dialogs, "Syndicate Market", "23_town_menu")
+	await _press(dialogs, "◆", "24_syndicate_stock")
+	await _press(dialogs, "Buy", "25_cross_buy_confirm")
+	await _press(dialogs, "OK", "26_cross_bought")
+	await _press(dialogs, "Leave")
+	await _press(dialogs, "Leave")
+	var marked: String = p.gear[p.gear.size() - 1]
+	p.equip(marked)
+	te._visit_free_town(p, con_town)
+	await _press(dialogs, "OK", "27_barred_at_gate")
+	await _press(dialogs, "Leave")
+	print("marked %s mark=%s barred=%s" % [marked, GameData.item(marked).get("mark", ""), p.barred_from("concord")])
 	var hud2 := Hud.new()
 	root.add_child(hud2)
 	hud2.refresh(p, 4)

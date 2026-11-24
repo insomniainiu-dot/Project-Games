@@ -6,7 +6,7 @@ var _failed := 0
 var _section := ""
 
 const KNOWN_EFFECTS := ["karma", "renown", "scrip", "fatigue", "gold_pct", "lose_gold_pct", "hp_pct", "item", "use_item",
-	"reward", "back", "skip", "steal", "coupon", "ally", "fight"]
+	"reward", "back", "skip", "steal", "coupon", "ally", "fight", "loan", "scrip_next", "open_shop"]
 
 
 func _init() -> void:
@@ -17,6 +17,8 @@ func _init() -> void:
 	_board_effects()
 	_battle_link()
 	_fights()
+	_shops()
+	_debts()
 	_save()
 	_fuzz()
 	print("\nEvent tests: %d passed, %d failed" % [_passed, _failed])
@@ -309,6 +311,115 @@ func _fights() -> void:
 	check(ok, "event fights finish with the AI at Lv 1 and 5")
 
 
+func _shops() -> void:
+	section("faction shops + marks (step 3)")
+	var p := PlayerStats.new()
+	eq(FactionShop.rank(p), 1, "Karma 20 = Concord rank 1")
+	p.karma = 45
+	eq(FactionShop.rank(p), 2, "Karma 45 = rank 2")
+	p.karma = 85
+	eq(FactionShop.rank(p), 3, "Karma 85 = rank 3")
+	var s := PlayerStats.new()
+	s.add_karma(-30)
+	eq(FactionShop.rank(s), 1, "Karma -10 = Syndicate rank 1")
+	s.add_karma(-40)
+	eq(FactionShop.rank(s), 2, "Karma -50 = Syndicate rank 2")
+	s.add_karma(55)
+	check(s.syndicate and FactionShop.rank(s) == 1, "Karma 5 while still Syndicate = rank 1")
+	# ราคา
+	var rng1 := rng(7)
+	var id := ItemDB.create("Plasma Blade", "rare", rng1)
+	var base: int = GameData.item(id).price
+	var c := PlayerStats.new()
+	eq(FactionShop.price(c, id, "concord"), roundi(base * 0.9), "own faction rank 1: -10%")
+	eq(FactionShop.price(c, id, "syndicate"), roundi(base * 1.25), "other faction: +25%")
+	eq(FactionShop.price(c, id, "concord", true), roundi(base * 0.9 * 0.75), "coupon: another -25%")
+	# ซื้อฝ่ายเดียวกัน + คูปอง
+	c.gold = 5000
+	c.coupons = {"concord": 1}
+	var hp0 := c.hp
+	var r := FactionShop.buy(c, id, "concord")
+	check(r.ok and not r.marked and c.gear.has(id) and c.hp == hp0, "own-faction buy: no mark, no HP cost")
+	check(r.coupon and c.coupons.concord == 0 and c.gold == 5000 - r.price, "coupon used once, gold paid")
+	# ซื้อข้ามฝ่าย → ตรา Syndicate
+	var id2 := ItemDB.create("Plasma Blade", "rare", rng1)
+	var r2 := FactionShop.buy(c, id2, "syndicate")
+	check(r2.ok and r2.marked and c.hp == hp0 - FactionShop.CROSS_HP_COST, "cross buy: marked, costs 5 HP")
+	var d := GameData.item(id2)
+	check(d.mark == "syndicate" and d.karma_per_battle == -FactionShop.MARK_KARMA and d.mods.has("attack_mult"), "Syndicate mark: attack x1.1, Karma -2 per battle")
+	check(GameData.item_lines(id2).contains("Syndicate Mark"), "mark shows in item text")
+	check(not c.barred_from("concord"), "a marked item in the bag doesn't bar you")
+	c.equip(id2)
+	check(c.barred_from("concord") and not c.barred_from("syndicate"), "wearing a Syndicate mark bars Concord towns")
+	eq(c.karma_per_battle(), -2, "wearing it drifts Karma -2 per battle")
+	# ตรา Concord (ฝ่ายชั่วซื้อของฝ่ายดี)
+	var bad := PlayerStats.new()
+	bad.add_karma(-30)
+	bad.gold = 5000
+	var id3 := ItemDB.create("Kevlar Vest", "rare", rng1)
+	var spd0: int = GameData.item(id3).get("spd", 0)
+	FactionShop.buy(bad, id3, "concord")
+	check(GameData.item(id3).mark == "concord" and GameData.item(id3).spd == spd0 + 1 and GameData.item(id3).karma_per_battle == 2, "Concord mark: SPD +1, Karma +2")
+	bad.equip(id3)
+	check(bad.barred_from("syndicate") and not bad.barred_from("concord"), "Concord mark bars Syndicate towns")
+	# เงิน/กระเป๋าไม่พอ
+	var poor := PlayerStats.new()
+	poor.gold = 0
+	check(not FactionShop.buy(poor, ItemDB.create("Plasma Blade", "rare", rng1), "concord").ok, "can't buy without gold")
+	# สต็อก
+	var stock := FactionShop.roll_stock(PlayerStats.new(), rng1)
+	check(stock.size() == FactionShop.STOCK_SIZE and stock.all(func(it): return GameData.rarity(it) == "rare"), "Lv 1 stock = 4 Rare items")
+	# Freeport Exchange
+	var f := PlayerStats.new()
+	eq(FactionShop.exchange_price(f, "Sedative Dart"), 2, "dart costs 2 Scrip")
+	f.renown = 20
+	eq(FactionShop.exchange_price(f, "Sedative Dart"), 1, "Renown 20: 1 Scrip off")
+	check(not FactionShop.buy_exchange(f, "Sedative Dart").ok, "no Scrip = no sale")
+	f.scrip = 10
+	check(FactionShop.buy_exchange(f, "Sedative Dart").ok and f.items.has("Sedative Dart") and f.scrip == 9, "bought a dart with Scrip")
+	check(FactionShop.buy_exchange(f, "charged_shot").ok and f.owns_gem("charged_shot"), "gems are sold for Scrip")
+	check(not FactionShop.buy_exchange(f, "charged_shot").ok, "can't buy a gem twice")
+	for k in FactionShop.EXCHANGE_STOCK:
+		check(GameData.ITEMS.has(k) or CCBalance.GEMS.has(k), "exchange item %s exists" % k)
+	check(not GameData.ITEM_SHOP_STOCK.has("Sedative Dart"), "Sedative Dart moved to the Exchange")
+	for cell in GameData.TOWNS:
+		check(FactionShop.SHOP_NAMES.has(GameData.TOWNS[cell].get("faction", "")), "%s has a faction shop" % GameData.TOWNS[cell].name)
+
+
+func _debts() -> void:
+	section("loans, guild bonus, secret shop (step 3)")
+	var p := PlayerStats.new()
+	p.gold = 100
+	EventRunner.resolve(p, "loan_broker", "C", rng(1))
+	check(p.gold == 130 and p.debts.size() == 1 and p.debts[0].amount == 45 and p.debts[0].turns == EventData.LOAN_TURNS, "loan: +30 Gold, owe 45 in 5 turns")
+	for i in EventData.LOAN_TURNS - 1:
+		EventRunner.tick_debts(p, rng(1))
+	check(p.debts.size() == 1 and p.gold == 130, "nothing collected before it's due")
+	var r := EventRunner.tick_debts(p, rng(1))
+	check(p.debts.is_empty() and p.gold == 85 and r.back_path.is_empty(), "due with enough gold: 45 auto-collected")
+	var q := PlayerStats.new()
+	q.gold = 0
+	q.debts = [{"amount": 40, "turns": 1}]
+	for c in [Vector2i(0, 0), Vector2i(1, 0), Vector2i(2, 0)]:
+		q.remember_step(c)
+	var items0 := q.items.size()
+	var r2 := EventRunner.tick_debts(q, rng(2))
+	check(q.debts.is_empty() and r2.back_path.size() == 3 and (q.items.size() < items0 or q.gold == 0), "can't pay: robbed + pushed back 3, debt cleared")
+	# Scrip ค้างจ่ายจากกิลด์
+	var g := PlayerStats.new()
+	g.renown = 20
+	g.scrip = 3
+	EventRunner.resolve(g, "guild_job_board", "D", rng(1))
+	check(g.scrip == 0 and g.pending_scrip == 1, "recruit: pay 3 Scrip, 1 waiting")
+	EventRunner.resolve(g, "stalled_crawler", "B", rng(1))
+	check(g.scrip == 1 and g.pending_scrip == 0, "the waiting Scrip arrives at the next event")
+	# ร้านลับ
+	var s := PlayerStats.new()
+	s.add_karma(-30)
+	var o := EventRunner.resolve(s, "fugitive_signal", "D", rng(1))
+	eq(o.open_shop, "syndicate", "smuggling opens the secret Syndicate Market")
+
+
 func _exp_to(lv: int) -> int:
 	var total := 0
 	for l in range(1, lv):
@@ -329,13 +440,21 @@ func _save() -> void:
 	p.coupons = {"concord": 2}
 	p.recent_events.assign(["ion_storm"])
 	p.ally_turns = 1
+	p.debts = [{"amount": 30, "turns": 2}]
+	p.pending_scrip = 1
+	p.gold = 9999
+	var marked := ItemDB.create("Mesh Armor", "rare", rng(4))
+	FactionShop.buy(p, marked, "concord") # ผู้เล่นอยู่ Syndicate → ได้ตรา Concord
 	var d := SaveGame.to_dict(s)
 	var s2 := GameState.new()
 	check(SaveGame.apply(s2, JSON.parse_string(JSON.stringify(d))), "v2 save loads through JSON")
 	eq(var_to_str(s2.player.to_dict()), var_to_str(p.to_dict()), "faction/event fields round-trip")
+	ItemDB._instances.erase(marked)
+	SaveGame.apply(GameState.new(), JSON.parse_string(JSON.stringify(d)))
+	eq(GameData.item(marked).get("mark", ""), "concord", "item marks survive save/load")
 	var old := d.duplicate(true)
 	old.version = 1
-	for k in ["karma", "syndicate", "renown", "scrip", "fatigue", "skip_turns", "trail", "coupons", "recent_events", "ally_turns"]:
+	for k in ["karma", "syndicate", "renown", "scrip", "fatigue", "skip_turns", "trail", "coupons", "recent_events", "ally_turns", "debts", "pending_scrip"]:
 		old.player.erase(k)
 	var s3 := GameState.new()
 	check(SaveGame.apply(s3, old), "v1 save still loads")

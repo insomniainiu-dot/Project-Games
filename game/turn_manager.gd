@@ -63,6 +63,7 @@ func play_turn() -> void:
 func _end_day() -> void:
 	_state.day += 1
 	var player := _state.player
+	await _events.tick_day(player) # หนี้ Syndicate ครบกำหนด
 	var tax := 0
 	for t in player.towns:
 		tax += GameData.TOWNS[t].tax

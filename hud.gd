@@ -42,7 +42,8 @@ func refresh(p: PlayerStats, day: int) -> void:
 		p.stat("atk"), p.stat("def"), p.stat("mag"), p.stat("spd"),
 		p.gold, day, p.towns.size(), GameData.TOWNS.size(),
 		"Karma %d (%s)  Renown %d  Scrip %d%s" % [p.karma, "Syndicate" if p.syndicate else "Concord", p.renown, p.scrip,
-			"\nFatigue %d" % p.fatigue if p.fatigue > 0 else ""],
+			("\nFatigue %d" % p.fatigue if p.fatigue > 0 else "") +
+			("\nDebt %s" % ", ".join(PackedStringArray(p.debts.map(func(d): return "%dG in %d" % [d.amount, d.turns]))) if not p.debts.is_empty() else "")],
 		_or_dash(GameData.display_name(p.weapon)), _or_dash(GameData.display_name(p.armor)), _or_dash(GameData.display_name(p.accessory)),
 		", ".join(PackedStringArray(p.gems.map(func(g): return GameData.gem_name(g) + ("" if p.gem_fits_weapon(g) else " (x)")))) if not p.gems.is_empty() else "-",
 		", ".join(PackedStringArray(p.items)) if not p.items.is_empty() else "-",

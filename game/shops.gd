@@ -40,6 +40,60 @@ func visit_shop(player: PlayerStats) -> void:
 		_state.notify()
 
 
+# ================================================================ ร้านฝ่าย (FactionShop)
+## Concord Armory / Syndicate Market — สต็อกสุ่มใหม่ทุกครั้งที่เข้า · secret = ร้านลับจากอีเวนต์
+func visit_faction_shop(player: PlayerStats, shop: String, secret := false) -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.randomize()
+	var stock: Array = FactionShop.roll_stock(player, rng)
+	while true:
+		var cross := FactionShop.is_cross(player, shop)
+		var note := ("You're not one of us. Prices +%d%%, and it'll cost you %d HP." % [roundi((FactionShop.CROSS_PRICE_MULT - 1) * 100), FactionShop.CROSS_HP_COST]) if cross \
+			else "Member price: -%d%%." % roundi(FactionShop.RANK_DISCOUNT[FactionShop.rank(player)] * 100)
+		if FactionShop.has_coupon(player, shop):
+			note += "  Coupon: -%d%% on your next buy." % roundi(FactionShop.COUPON_DISCOUNT * 100)
+		var labels: Array = []
+		for it in stock:
+			labels.append("%s  %dG   %s" % [GameData.display_name(it), FactionShop.price(player, it, shop, FactionShop.has_coupon(player, shop)), GameData.stat_text(it)])
+		labels.append("Leave")
+		var title := "%s%s - Gold %d   Gear bag %d/%d\n%s" % ["Secret " if secret else "", FactionShop.SHOP_NAMES[shop], player.gold,
+			player.gear.size(), GameData.MAX_GEAR, note]
+		var pick := await _dialogs.choose(title, labels)
+		if pick >= stock.size():
+			return
+		var item: String = stock[pick]
+		var lines := GameData.item_lines(item)
+		var warn := "\n\nBuying here marks it: %s" % FactionShop.mark_text(shop) if cross else ""
+		var confirm := await _dialogs.choose("Buy %s for %dG?\n%s%s%s" % [GameData.display_name(item), FactionShop.price(player, item, shop, FactionShop.has_coupon(player, shop)),
+			GameData.stat_text(item), "\n" + lines if lines != "" else "", warn], ["Buy", "Cancel"])
+		if confirm != 0:
+			continue
+		var r := FactionShop.buy(player, item, shop)
+		if not r.ok:
+			await _dialogs.message(r.reason)
+			continue
+		stock.erase(item)
+		_state.notify()
+		await _dialogs.message("Bought %s for %dG.%s%s" % [GameData.display_name(item), r.price, " (coupon used)" if r.get("coupon", false) else "",
+			"\nIt bears the %s mark. You lost %d HP." % ["Syndicate" if shop == "syndicate" else "Concord", FactionShop.CROSS_HP_COST] if r.marked else ""])
+
+
+## Freeport Exchange — ซื้อด้วย Scrip
+func visit_exchange(player: PlayerStats) -> void:
+	var keys: Array = FactionShop.EXCHANGE_STOCK.keys()
+	while true:
+		var labels: Array = []
+		for k in keys:
+			labels.append("%s  %d Scrip" % [FactionShop.exchange_name(k), FactionShop.exchange_price(player, k)])
+		labels.append("Leave")
+		var pick := await _dialogs.choose("Freeport Exchange - Scrip %d   Renown %d\n\"Everyone's welcome. Everyone pays.\"" % [player.scrip, player.renown], labels)
+		if pick >= keys.size():
+			return
+		var r := FactionShop.buy_exchange(player, keys[pick])
+		_state.notify()
+		await _dialogs.message(r.reason if not r.ok else "Bought %s for %d Scrip." % [FactionShop.exchange_name(keys[pick]), r.price])
+
+
 # ================================================================ ร้านอาวุธ (Smithy)
 func visit_smithy(player: PlayerStats) -> void:
 	var text := "Smithy \"Iron & Ember\"\n\"Welcome, traveler! Gold for steel - fair and square.\""

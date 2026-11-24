@@ -28,6 +28,8 @@ var skip_turns := 0 # เทิร์นที่ต้องข้าม (อ�
 var trail: Array[Vector2i] = [] # ช่องที่เพิ่งเดินผ่าน (ใหม่สุดท้ายสุด) ใช้ "ถอย N"
 var coupons := {} # ฝ่าย -> จำนวนส่วนลดร้าน 1 ครั้ง (ร้านฝ่ายมาในขั้น 3)
 var ally_turns := 0 # สัตว์พันธมิตรจากอีเวนต์ ช่วยในการต่อสู้ครั้งถัดไป (จำนวนตา)
+var debts: Array = [] # หนี้ Syndicate: [{"amount": เงินที่ต้องคืน, "turns": เทิร์นที่เหลือ}]
+var pending_scrip := 0 # Scrip ที่ได้คืนตอนผ่านอีเวนต์ถัดไป (อีเวนต์ 13 D-F)
 var recent_events: Array[String] = [] # อีเวนต์ล่าสุด กันสุ่มซ้ำ
 
 # ตำแหน่งบนกระดาน (เก็บที่ผู้เล่นแต่ละคน เผื่อมีหลายผู้เล่นใน Phase 2)
@@ -390,6 +392,27 @@ func meets(need: String) -> bool:
 	return need == ""
 
 
+## Karma ที่เปลี่ยนทุกครั้งที่เริ่มต่อสู้ จากของที่สวมซึ่งมีตราข้ามฝ่าย
+func karma_per_battle() -> int:
+	var n := 0
+	for e in [weapon, armor, accessory]:
+		if e != "":
+			n += int(GameData.item(e).get("karma_per_battle", 0))
+	return n
+
+
+## เข้าเมืองฝ่าย town_faction ไม่ได้ เพราะสวมของที่มีตราฝ่ายตรงข้าม
+## (ตรา Syndicate ห้ามเข้าเมือง Concord · ตรา Concord ห้ามเข้าเมือง Syndicate)
+func barred_from(town_faction: String) -> bool:
+	if town_faction == "":
+		return false
+	for e in [weapon, armor, accessory]:
+		var mark: String = GameData.item(e).get("mark", "") if e != "" else ""
+		if mark != "" and mark != town_faction:
+			return true
+	return false
+
+
 ## จำช่องที่เดินผ่าน (BoardWalker เรียกทุกก้าว)
 func remember_step(cell: Vector2i) -> void:
 	trail.append(cell)
@@ -422,7 +445,8 @@ func to_dict() -> Dictionary:
 		"tile": [tile.x, tile.y], "came_from": [came_from.x, came_from.y],
 		"karma": karma, "syndicate": syndicate, "renown": renown, "scrip": scrip, "fatigue": fatigue,
 		"skip_turns": skip_turns, "trail": trail.map(func(c): return [c.x, c.y]), "coupons": coupons.duplicate(),
-		"recent_events": recent_events.duplicate(), "ally_turns": ally_turns}
+		"recent_events": recent_events.duplicate(), "ally_turns": ally_turns, "debts": debts.duplicate(true),
+		"pending_scrip": pending_scrip}
 
 
 ## เขียนทับค่าด้วยข้อมูลเซฟ (ค่าที่ไม่มีในเซฟคงเดิม)
@@ -468,6 +492,10 @@ func from_dict(d: Dictionary) -> void:
 		coupons[k] = int(cp[k])
 	recent_events.assign(d.get("recent_events", []).filter(func(e): return EventData.EVENTS.has(e)))
 	ally_turns = int(d.get("ally_turns", ally_turns))
+	debts = []
+	for dbt in d.get("debts", []):
+		debts.append({"amount": int(dbt.amount), "turns": int(dbt.turns)})
+	pending_scrip = int(d.get("pending_scrip", pending_scrip))
 	_recalc_base()
 	hp = clampi(int(d.get("hp", hp)), 1, max_hp())
 

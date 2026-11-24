@@ -143,7 +143,7 @@ const ITEMS := {
 		"desc": "Restarts your heart. Sometimes twice."},
 }
 
-const ITEM_SHOP_STOCK := ["Medkit", "Big Medkit", "Stim Shot", "Armor Gel", "Plasma Grenade", "Toxin Dart", "Smoke Bomb", "Sedative Dart"] # ร้านไอเทม (ช่อง Shop) — Sedative Dart ย้ายไป Freeport Exchange ในขั้น 3
+const ITEM_SHOP_STOCK := ["Medkit", "Big Medkit", "Stim Shot", "Armor Gel", "Plasma Grenade", "Toxin Dart", "Smoke Bomb"] # ร้านไอเทม (ช่อง Shop) — Sedative Dart ขายที่ Freeport Exchange (FactionShop)
 # ร้านอาวุธ (บ้านข้างปราสาท / ช่อง Smithy) แยกตามหมวด
 const SMITHY_STOCK := {
 	"weapon": ["Ion Rod", "Plasma Blade", "Pulse Rifle", "Solar Lance", "Gravity Hammer"],
@@ -307,9 +307,10 @@ const TILE_TYPES := {
 }
 
 # เมืองที่ถูกมอนสเตอร์ยึด: ชนะผู้คุมแล้วเมืองเป็นของเรา ได้ภาษีทุกวัน
+# faction = ร้านฝ่ายในเมือง (FactionShop) · สวมของที่มีตราฝ่ายตรงข้าม = เข้าเมืองไม่ได้
 const TOWNS := {
-	Vector2i(-2, 2): {"name": "Willowmere", "guard": "Goblin Chief", "tax": 20},
-	Vector2i(8, 2): {"name": "Ashford", "guard": "Bone Lord", "tax": 25},
+	Vector2i(-2, 2): {"name": "Willowmere", "guard": "Goblin Chief", "tax": 20, "faction": "concord"},
+	Vector2i(8, 2): {"name": "Ashford", "guard": "Bone Lord", "tax": 25, "faction": "syndicate"},
 }
 
 # ช่องพิเศษ (ช่องที่ไม่อยู่ในนี้จะสุ่มตามรูปแบบใน main.gd)

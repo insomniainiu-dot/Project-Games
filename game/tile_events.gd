@@ -94,7 +94,22 @@ func run_event(player: PlayerStats, event_id := "") -> void:
 			await _play_back(after.back_path)
 			if not after.lines.is_empty():
 				await _dialogs.message("\n".join(after.lines))
+		if r.open_shop != "": # ร้านลับจากอีเวนต์ (เข้าได้ครั้งนี้ครั้งเดียว)
+			await _shops.visit_faction_shop(player, r.open_shop, true)
 		return
+
+
+## จบวัน (TurnManager): หนี้ Syndicate ครบกำหนด
+func tick_day(player: PlayerStats) -> void:
+	if player.debts.is_empty():
+		return
+	var rng := RandomNumberGenerator.new()
+	rng.randomize()
+	var r := EventRunner.tick_debts(player, rng)
+	_state.notify()
+	await _play_back(r.back_path)
+	if not r.lines.is_empty():
+		await _dialogs.message("\n".join(r.lines))
 
 
 ## เล่นแอนิเมชันถอยตามช่อง (ตำแหน่งผู้เล่นถูกเปลี่ยนไปแล้ว)
@@ -120,6 +135,12 @@ func fight(player: PlayerStats, monster_id: String, ev := {}) -> String:
 	if COMBAT_SYSTEM == "dice_duel":
 		return await _fight_dice_duel(player, monster_id)
 	var m: Dictionary = GameData.MONSTERS[monster_id]
+	var drift := player.karma_per_battle() # ของที่มีตราข้ามฝ่ายดึง Karma ทุกครั้งที่เริ่มสู้
+	if drift != 0:
+		var switched := player.add_karma(drift)
+		_state.notify()
+		if switched != "":
+			await _dialogs.message("The mark on your gear pulls at you... Karma %+d.\nYou are now with the %s!" % [drift, EventData.FACTION_NAMES[switched]])
 	var ui := CCBattleUI.new()
 	add_child(ui)
 	var final: Dictionary = await ui.start(CCBridge.config(player, monster_id, randi(), ev.get("opts", {})), CCBridge.portraits(monster_id))
@@ -280,8 +301,7 @@ func _visit_castle(player: PlayerStats) -> void:
 func _visit_town(player: PlayerStats, cell: Vector2i) -> void:
 	var town: Dictionary = GameData.TOWNS[cell]
 	if player.towns.has(cell):
-		var healed := player.heal(roundi(player.max_hp() * 0.3))
-		await _dialogs.message("The people of %s cheer for you! (+%d HP)" % [town.name, healed])
+		await _visit_free_town(player, town)
 		return
 	var pick := await _dialogs.choose("%s is ruled by the %s!\nFight to free the town?" % [town.name, town.guard], ["Fight!", "Not now"])
 	if pick != 0:
@@ -296,6 +316,38 @@ func _visit_town(player: PlayerStats, cell: Vector2i) -> void:
 		await _dialogs.message("%s is free! It will pay you %d Gold every day." % [town.name, town.tax])
 		if player.towns.size() == GameData.TOWNS.size():
 			await _dialogs.message("All towns are free! You saved the kingdom in %d days!" % _state.day)
+
+
+## เมืองที่ปลดปล่อยแล้ว: ฟื้น HP + ร้านฝ่ายของเมือง + Freeport Exchange
+## สวมของที่มีตราฝ่ายตรงข้าม = ยามไม่ให้เข้า (ใช้ได้แค่ Exchange ที่ประตูเมือง)
+func _visit_free_town(player: PlayerStats, town: Dictionary) -> void:
+	var fac: String = town.get("faction", "")
+	if player.barred_from(fac):
+		await _dialogs.message("%s guards stop you at the gate: \"We don't let that mark in here.\"\n(Take off gear with the %s mark to enter.)" %
+			[town.name, "Syndicate" if fac == "concord" else "Concord"])
+		if await _dialogs.choose("A Freeport trader waves from outside the wall.", ["Visit the Freeport Exchange", "Leave"]) == 0:
+			await _shops.visit_exchange(player)
+		return
+	var healed := player.heal(roundi(player.max_hp() * 0.3))
+	player.fatigue = 0
+	await _dialogs.message("The people of %s cheer for you! (+%d HP, fatigue gone)" % [town.name, healed])
+	while true:
+		var opts: Array = []
+		var acts: Array = []
+		if fac != "":
+			opts.append(FactionShop.SHOP_NAMES[fac])
+			acts.append(fac)
+		opts.append(FactionShop.SHOP_NAMES.freeport)
+		acts.append("freeport")
+		opts.append("Leave")
+		var pick := await _dialogs.choose("%s (%s)" % [town.name, EventData.FACTION_NAMES.get(fac, "Free town")], opts)
+		if pick >= acts.size():
+			return
+		if acts[pick] == "freeport":
+			await _shops.visit_exchange(player)
+		else:
+			await _shops.visit_faction_shop(player, acts[pick])
+		_state.notify()
 
 
 ## เอาผู้คุมของเมืองที่ปลดปล่อยแล้วออก (หลังโหลดเซฟ)

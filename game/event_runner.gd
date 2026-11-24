@@ -90,6 +90,9 @@ static func resolve(player: PlayerStats, event_id: String, key: String, rng: Ran
 	var opt := option(event_id, key)
 	var out := _new_out()
 	_remember(player, event_id)
+	if player.pending_scrip > 0: # รางวัลค้างจากอีเวนต์กิลด์ครั้งก่อน
+		_apply(player, ["scrip", player.pending_scrip], rng, out)
+		player.pending_scrip = 0
 	if opt.is_empty() or not availability(player, opt).ok:
 		out.lines.append("Nothing happens.")
 		return out
@@ -110,7 +113,27 @@ static func resolve(player: PlayerStats, event_id: String, key: String, rng: Ran
 
 
 static func _new_out() -> Dictionary:
-	return {"lines": PackedStringArray(), "back_path": [], "faction": "", "fight": {}}
+	return {"lines": PackedStringArray(), "back_path": [], "faction": "", "fight": {}, "open_shop": ""}
+
+
+## จบวัน: นับถอยหลังหนี้ ครบกำหนดแล้ว เงินพอ = หักอัตโนมัติ / ไม่พอ = ถูกขโมย + ถอย (หนี้ถูกยกไป)
+static func tick_debts(player: PlayerStats, rng: RandomNumberGenerator) -> Dictionary:
+	var out := _new_out()
+	var keep: Array = []
+	for d in player.debts:
+		d.turns -= 1
+		if d.turns > 0:
+			keep.append(d)
+			continue
+		if player.gold >= int(d.amount):
+			player.gold -= int(d.amount)
+			out.lines.append("A Syndicate collector takes the %d Gold you owe." % d.amount)
+		else:
+			out.lines.append("You couldn't repay %d Gold. The Syndicate collects... their way." % d.amount)
+			_apply(player, ["steal"], rng, out)
+			_apply(player, ["back", EventData.LOAN_PENALTY_BACK], rng, out)
+	player.debts = keep
+	return out
 
 
 ## หลังสู้ในอีเวนต์จบ: ใส่ผล win / lose ของอีเวนต์ (แพ้แบบจริงจังถูกส่งกลับปราสาทแล้ว จึงข้าม "back")
@@ -220,6 +243,18 @@ static func _apply(player: PlayerStats, e: Array, rng: RandomNumberGenerator, ou
 		"coupon":
 			player.coupons[e[1]] = int(player.coupons.get(e[1], 0)) + 1
 			out.lines.append("Got a %s shop coupon" % EventData.FACTION_NAMES[e[1]])
+		"loan":
+			var g := _gold_amount(player, e)
+			var owe := ceili(g * EventData.LOAN_INTEREST)
+			player.gold += g
+			player.debts.append({"amount": owe, "turns": EventData.LOAN_TURNS})
+			out.lines.append("Borrowed %d Gold. You owe %d within %d turns." % [g, owe, EventData.LOAN_TURNS])
+		"scrip_next":
+			player.pending_scrip += int(e[1])
+			out.lines.append("+%d Scrip waiting for you at the next event" % e[1])
+		"open_shop":
+			out.open_shop = e[1]
+			out.lines.append("A hidden %s opens its doors to you." % FactionShop.SHOP_NAMES[e[1]])
 		"ally":
 			player.ally_turns = maxi(player.ally_turns, int(e[1]))
 			out.lines.append("A grateful creature will fight beside you next battle (%d dmg/turn)" % EventData.ally_damage(player.level))
@@ -321,6 +356,13 @@ static func _effect_texts(player: PlayerStats, effects: Array) -> PackedStringAr
 				out.append("Shop coupon")
 			"ally":
 				out.append("Ally next battle")
+			"loan":
+				var g := _gold_amount(player, e)
+				out.append("+%d Gold now, owe %d in %d turns" % [g, ceili(g * EventData.LOAN_INTEREST), EventData.LOAN_TURNS])
+			"scrip_next":
+				out.append("Scrip +%d later" % e[1])
+			"open_shop":
+				out.append("Secret shop")
 			"fight":
 				var spec: Dictionary = e[1]
 				var who: String = spec.get("monster", EventData.WILD_FIGHT)

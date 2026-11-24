@@ -40,6 +40,12 @@ static func fight_scale(level: int, boss: bool, weak := {}, power := 1.0) -> Dic
 	return out
 
 
+# ---------------------------------------------------------------- หนี้ (อีเวนต์ 12)
+const LOAN_INTEREST := 1.5 ## ต้องคืนเท่านี้ของที่ยืม
+const LOAN_TURNS := 5 ## ภายในกี่เทิร์น (นับตอนจบวัน) — ครบแล้วเงินพอ = ถูกหักอัตโนมัติ, ไม่พอ = ถูกขโมย + ถอย
+const LOAN_PENALTY_BACK := 3
+
+
 ## [รางวัลสุ่ม]: น้ำหนัก (ใบเควสยังไม่มี T-034 → นับเป็นไอเทม)
 const REWARD_WEIGHTS := {"credits": 35, "consumable": 40, "gear": 25}
 ## tier ของอุปกรณ์รางวัลตามเลเวล: [เลเวลขั้นต่ำ, {tier: น้ำหนัก}] — ใช้แถวสุดท้ายที่เลเวลถึง
@@ -61,6 +67,8 @@ const TIER_ORDER := ["common", "rare", "epic"]
 ##   ["ally", ตา] = สัตว์พันธมิตรช่วยสู้ครั้งถัดไป
 ##   ["fight", {monster ("wild" = สุ่ม), boss, power (HP/ATK ×), weak {"atk": 0.7}, hero_mods, friendly, exp_mult, win [...], lose [...]}]
 ##     ต้องเป็น effect สุดท้ายของชุด · friendly = แพ้ไม่ถูกส่งกลับปราสาท · แพ้จริงจัง "back" ใน lose ถูกข้าม
+##   ["loan", %, ขั้นต่ำ] = ยืมเงิน Syndicate (คืน LOAN_INTEREST เท่าใน LOAN_TURNS เทิร์น ไม่งั้นถูกขโมย + ถอย 3)
+##   ["scrip_next", n] = ได้ Scrip ตอนผ่านอีเวนต์ถัดไป · ["open_shop", ฝ่าย] = เปิดร้านลับของฝ่ายนั้นทันที
 ## weight = น้ำหนักสุ่ม (ไม่ใส่ = 10)
 const EVENTS := {
 	"stalled_crawler": {
@@ -246,6 +254,43 @@ const EVENTS := {
 				["fight", {"monster": "Rockhide Grazer", "boss": true, "hero_mods": {"attack_mult": 1.2}, "win": [["reward", 3]]}]]},
 			{"key": "D", "need": "concord", "label": "Fire a Sedative Dart", "cost": [["use_item", "Sedative Dart"]],
 				"effects": [["karma", 3], ["reward", 2]]},
+		],
+	},
+	# ---- อีเวนต์ร้าน / หนี้ / กิลด์ (ขั้น 3)
+	"loan_broker": {
+		"title": "Syndicate Loan Broker",
+		"text": "A figure in a black coat holds out a credit stick. \"Borrow now. Pay later. We're very patient.\"",
+		"options": [
+			{"key": "A", "label": "Refuse and warn the locals", "effects": [["fatigue", 1], ["karma", 1]]},
+			{"key": "B", "label": "Walk past"},
+			{"key": "C", "label": "Take the loan", "effects": [["loan", 30, 3]]},
+			{"key": "D", "need": "syndicate", "label": "Work as a debt collector", "effects": [["karma", -2], ["gold_pct", 25, 2]],
+				"check": {"base": 50, "stat": "atk", "pass": [], "fail": [["hp_pct", -10], ["back", 2]]}},
+		],
+	},
+	"guild_job_board": {
+		"title": "Freeport Job Board",
+		"text": "A Freeport Guild notice blinks on the colony board: urgent parcel, double pay if on time.",
+		"options": [
+			{"key": "A", "label": "Take the delivery", "effects": [["fatigue", 1]],
+				"check": {"base": 65, "stat": "spd", "pass": [["renown", 2], ["scrip", 2], ["reward", 1]], "fail": [["skip", 1]]}},
+			{"key": "B", "label": "Walk past"},
+			{"key": "C", "label": "Open the parcel and skim some", "effects": [["karma", -1], ["reward", 1]],
+				"check": {"base": 40, "stat": "lck", "pass": [], "fail": [["renown", -2]]}},
+			{"key": "D", "need": "freeport", "label": "Recruit a pilot for the Guild", "cost": [["scrip", 3]],
+				"effects": [["renown", 3], ["scrip_next", 1]]},
+		],
+	},
+	"fugitive_signal": {
+		"title": "Fugitive Signal",
+		"text": "A breathless stranger grabs your arm: \"Security is after me. Hide me, please!\" You can't tell who's in the right.",
+		"options": [
+			{"key": "A", "label": "Hide them and hear the story", "effects": [["fatigue", 1]],
+				"check": {"base": 50, "stat": "lck", "pass": [["karma", 2], ["reward", 1]], "fail": [["steal"]]}},
+			{"key": "B", "label": "Walk past"},
+			{"key": "C", "label": "Hand them over to security", "effects": [["karma", -1], ["gold_pct", 15, 2]]},
+			{"key": "D", "need": "syndicate", "label": "Smuggle them into the Syndicate network",
+				"effects": [["karma", -2], ["gold_pct", 20, 3], ["open_shop", "syndicate"]]},
 		],
 	},
 	"ion_storm": {

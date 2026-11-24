@@ -122,12 +122,25 @@ static func data(id: String) -> Dictionary:
 		else:
 			var v = (1.0 + a.value / 100.0) if def.get("pct_mult", false) else a.value
 			mods = CCBalance.merge_mods(mods, {def.mod: v})
+	var mark: String = rec.get("mark", "")
+	if mark != "": # ตราข้ามฝ่าย (ซื้อจากร้านฝ่ายตรงข้าม) — ดู FactionShop
+		mods = CCBalance.merge_mods(mods, {"attack_mult": FactionShop.MARK_ATTACK_MULT})
+		if mark == "concord":
+			out.spd = int(out.get("spd", 0)) + FactionShop.CONCORD_MARK_SPD
+		out.mark = mark
+		out.karma_per_battle = FactionShop.MARK_KARMA if mark == "concord" else -FactionShop.MARK_KARMA
 	if not mods.is_empty():
 		out.mods = mods
 	return out
 
 
-## ข้อความ affix ทีละบรรทัด เช่น "+3 ATK", "Attack damage +10%"
+## ติดตราข้ามฝ่ายให้ instance ("concord" / "syndicate")
+static func set_mark(id: String, mark: String) -> void:
+	if _instances.has(id):
+		_instances[id].mark = mark
+
+
+## ข้อความ affix ทีละบรรทัด เช่น "+3 ATK", "Attack damage +10%" (+ ตราถ้ามี)
 static func affix_lines(id: String) -> PackedStringArray:
 	var lines := PackedStringArray()
 	for a in record(id).get("affixes", []):
@@ -136,6 +149,9 @@ static func affix_lines(id: String) -> PackedStringArray:
 			lines.append("+%d %s" % [a.value, GameData.stat_label(def.stat)])
 		else:
 			lines.append(def.text % a.value)
+	var mark: String = record(id).get("mark", "")
+	if mark != "":
+		lines.append(FactionShop.mark_text(mark))
 	return lines
 
 
