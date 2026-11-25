@@ -142,7 +142,7 @@ func _options() -> void:
 	check(EventRunner.availability(p, d).ok, "affordable with 5 Scrip")
 	check(EventRunner.describe(p, d).contains("Scrip -5") and EventRunner.describe(p, d).contains("Freeport"), "label shows cost + faction")
 	EventRunner.resolve(p, "stalled_crawler", "D", rng(1))
-	check(p.scrip == 0 and p.renown == 23, "paying Scrip takes it away (5 -> 0), Renown +3")
+	check(p.scrip == 3 * EventData.SCRIP_PER_RENOWN and p.renown == 23, "pay 5 Scrip (5 -> 0), Renown +3, Guild pays Scrip per Renown")
 	# alt: ไม่มี Medkit ยังเลือกได้ แต่ใช้ผลสำรอง
 	var s := PlayerStats.new()
 	s.items.clear()
@@ -411,9 +411,10 @@ func _debts() -> void:
 	g.renown = 20
 	g.scrip = 3
 	EventRunner.resolve(g, "guild_job_board", "D", rng(1))
-	check(g.scrip == 0 and g.pending_scrip == 1, "recruit: pay 3 Scrip, 1 waiting")
+	var paid := 3 * EventData.SCRIP_PER_RENOWN
+	check(g.scrip == paid and g.pending_scrip == 1, "recruit: pay 3 Scrip, Renown +3 pays %d, 1 waiting" % paid)
 	EventRunner.resolve(g, "stalled_crawler", "B", rng(1))
-	check(g.scrip == 1 and g.pending_scrip == 0, "the waiting Scrip arrives at the next event")
+	check(g.scrip == paid + 1 and g.pending_scrip == 0, "the waiting Scrip arrives at the next event")
 	# ร้านลับ
 	var s := PlayerStats.new()
 	s.add_karma(-30)
@@ -432,7 +433,7 @@ func _overclock() -> void:
 	eq(Overclock.chance(p, "Plasma Blade", "smithy"), 85, "+1 at the Smithy: 85%")
 	eq(Overclock.chance(p, "Plasma Blade", "concord"), 95, "own-faction Fabricator: +15% (capped 95)")
 	eq(Overclock.chance(p, "Plasma Blade", "syndicate"), 70, "rival Fabricator: -15%")
-	eq(Overclock.cost("Plasma Blade"), roundi(110 * 0.2), "+1 costs 20% of the price")
+	eq(Overclock.cost("Plasma Blade"), maxi(Overclock.MIN_COST, roundi(110 * Overclock.COST_PCT[0] / 100.0)), "+1 costs COST_PCT[0]% of the price")
 	var r := {}
 	var seed := 0
 	while true: # หา seed ที่สำเร็จ
@@ -475,7 +476,7 @@ func _overclock() -> void:
 	var big := ItemDB.create("Gravity Hammer", "rare", rng(9))
 	var batk: int = GameData.item(big).atk
 	ItemDB.set_plus(big, 2)
-	eq(GameData.item(big).atk, batk + maxi(2, ceili(batk * 0.2)), "+2: +20% on big stats")
+	eq(GameData.item(big).atk, batk + maxi(2, ceili(batk * Overclock.STAT_PCT * 2 / 100.0)), "+2: STAT_PCT x2 on big stats")
 	check(not Overclock.can_overclock(id), "can't go past +5")
 	check(not Overclock.attempt(p, id, "smithy", false, rng(1)).ok, "attempt refused at +5")
 	# Unique ก็ตีได้ ชื่อยังเป็น ★

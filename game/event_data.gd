@@ -6,7 +6,8 @@ class_name EventData
 const KARMA_START := 20
 const KARMA_RETURN := 10 ## อยู่ Syndicate แล้วกลับ Concord ต้อง Karma ถึงเท่านี้ (กันสลับฝ่ายไปมา)
 const D_CONCORD_KARMA := 40 ## ตัวเลือก D-C ต้อง Karma เท่านี้ (Concord ระดับ 2)
-const D_FREEPORT_RENOWN := 20 ## ตัวเลือก D-F ต้อง Renown เท่านี้
+const D_FREEPORT_RENOWN := 10 ## ตัวเลือก D-F ต้อง Renown เท่านี้ (sim: 20 แทบไม่มีใครถึง)
+const SCRIP_PER_RENOWN := 1 ## ได้ Renown แล้วกิลด์จ่าย Scrip ตามจำนวน (sim: ไม่งั้น Scrip น้อยจนใช้ร้าน Exchange แทบไม่ได้)
 const FACTION_NAMES := {"concord": "Beacon Concord", "syndicate": "Redline Syndicate", "freeport": "Freeport Guild"}
 
 # ---------------------------------------------------------------- กติกาทั่วไป
@@ -47,7 +48,7 @@ const LOAN_PENALTY_BACK := 3
 
 
 ## [รางวัลสุ่ม]: น้ำหนัก (ใบเควสยังไม่มี T-034 → นับเป็นไอเทม)
-const REWARD_WEIGHTS := {"credits": 35, "consumable": 40, "gear": 25}
+const REWARD_WEIGHTS := {"credits": 30, "consumable": 35, "gear": 25, "scrip": 10} ## scrip = 1–2 Scrip
 ## tier ของอุปกรณ์รางวัลตามเลเวล: [เลเวลขั้นต่ำ, {tier: น้ำหนัก}] — ใช้แถวสุดท้ายที่เลเวลถึง
 const REWARD_GEAR_TIERS := [
 	[1, {"common": 100}],
@@ -75,7 +76,7 @@ const EVENTS := {
 		"title": "Stalled Crawler",
 		"text": "A colonist waves you down. The drive coil on their cargo crawler has burnt out.",
 		"options": [
-			{"key": "A", "label": "Help fix it", "effects": [["fatigue", 1], ["karma", 1], ["reward", 1]]},
+			{"key": "A", "label": "Help fix it", "effects": [["fatigue", 1], ["karma", 1], ["renown", 1], ["gold_pct", 5, 4], ["reward", 1]]},
 			{"key": "B", "label": "Walk past"},
 			{"key": "C", "label": "Loot the cargo", "effects": [["karma", -1], ["reward", 1]],
 				"roll": {"chance": 25, "effects": [["skip", 1]]}},
@@ -99,9 +100,9 @@ const EVENTS := {
 		"title": "Lost in the Mine Sector",
 		"text": "A kid is crying between the ore haulers. They can't find the way home.",
 		"options": [
-			{"key": "A", "label": "Walk them home", "effects": [["fatigue", 1], ["karma", 1], ["reward", 1]]},
+			{"key": "A", "label": "Walk them home", "effects": [["fatigue", 1], ["karma", 1], ["gold_pct", 5, 4], ["reward", 1]]},
 			{"key": "B", "label": "Walk past"},
-			{"key": "C", "label": "Con them out of their credits", "effects": [["karma", -1], ["gold_pct", 10, 1]],
+			{"key": "C", "label": "Con them out of their credits", "effects": [["karma", -1], ["gold_pct", 7, 1]],
 				"roll": {"chance": 20, "effects": [["back", 3]]}},
 			{"key": "D", "need": "concord", "label": "Hand them to a Beacon station",
 				"effects": [["karma", 2], ["item", "Medkit"], ["coupon", "concord"]]},
@@ -112,10 +113,11 @@ const EVENTS := {
 		"text": "A surveyor lies by the road, their suit hissing air.",
 		"options": [
 			{"key": "A", "label": "Patch them up", "cost": [["use_item", "Medkit"]],
-				"effects": [["karma", 2], ["reward", 1]], "alt": [["fatigue", 2], ["skip", 1], ["karma", 2], ["reward", 1]]},
+				"effects": [["karma", 2], ["renown", 1], ["reward", 1]], "alt": [["fatigue", 2], ["skip", 1], ["karma", 2], ["renown", 1], ["reward", 1]]},
 			{"key": "B", "label": "Walk past"},
-			{"key": "C", "label": "Strip their gear", "effects": [["karma", -2], ["reward", 2], ["hp_pct", -10]]},
-			{"key": "D", "need": "syndicate", "label": "Sell their location to raiders", "effects": [["karma", -1], ["gold_pct", 20, 2]],
+			{"key": "C", "label": "Strip their gear", "effects": [["karma", -2], ["reward", 2], ["hp_pct", -10]],
+				"roll": {"chance": 25, "effects": [["back", 2]]}},
+			{"key": "D", "need": "syndicate", "label": "Sell their location to raiders", "effects": [["karma", -1], ["gold_pct", 15, 2]],
 				"roll": {"chance": 30, "effects": [["steal"]]}},
 		],
 	},
@@ -138,7 +140,7 @@ const EVENTS := {
 			{"key": "A", "label": "Expose the hack", "effects": [["fatigue", 1]],
 				"check": {"base": 55, "stat": "mag", "pass": [["karma", 1], ["renown", 1], ["reward", 1]], "fail": [["skip", 1]]}},
 			{"key": "B", "label": "Walk past"},
-			{"key": "C", "label": "Blackmail the trader", "effects": [["karma", -1], ["gold_pct", 10, 1]],
+			{"key": "C", "label": "Blackmail the trader", "effects": [["karma", -1], ["gold_pct", 7, 1]],
 				"roll": {"chance": 25, "effects": [["steal"]]}},
 			{"key": "D", "need": "freeport", "label": "Let the Guild settle it", "cost": [["scrip", 2]],
 				"effects": [["gold_pct", 15, 2], ["renown", 2]]},
@@ -152,15 +154,16 @@ const EVENTS := {
 			{"key": "A", "label": "Chase them down", "effects": [["fatigue", 1]],
 				"check": {"base": 50, "stat": "spd", "pass": [["karma", 1]], "fail": [["steal"], ["back", 2]]}},
 			{"key": "B", "label": "Let it go", "effects": [["lose_gold_pct", 10, 1]]},
-			{"key": "C", "label": "Catch them and make them work for you", "effects": [["karma", -1], ["reward", 1]]},
-			{"key": "D", "need": "syndicate", "label": "Tip off the Syndicate", "effects": [["karma", -1], ["gold_pct", 10, 1]]},
+			{"key": "C", "label": "Catch them and make them work for you", "effects": [["karma", -1], ["reward", 1]],
+				"roll": {"chance": 25, "effects": [["lose_gold_pct", 10, 1]]}},
+			{"key": "D", "need": "syndicate", "label": "Tip off the Syndicate", "effects": [["karma", -1], ["gold_pct", 7, 1]]},
 		],
 	},
 	"broken_span": {
 		"title": "Broken Maglev Span",
 		"text": "Half the maglev bridge has collapsed. Colonists are stuck on the far side.",
 		"options": [
-			{"key": "A", "label": "Repair it together", "effects": [["fatigue", 2], ["karma", 1], ["renown", 1]]},
+			{"key": "A", "label": "Repair it together", "effects": [["fatigue", 2], ["karma", 1], ["renown", 1], ["gold_pct", 5, 4], ["reward", 1]]},
 			{"key": "B", "label": "Take the long way", "effects": [["back", 2]]},
 			{"key": "C", "label": "Jump the gap alone",
 				"check": {"base": 45, "stat": "spd", "pass": [], "fail": [["hp_pct", -15], ["steal"]]}},
@@ -184,10 +187,10 @@ const EVENTS := {
 		"title": "Harvest Festival",
 		"text": "The hydroponics dome is celebrating its harvest. They invite you in.",
 		"options": [
-			{"key": "A", "label": "Join in and help serve", "effects": [["fatigue", 1], ["karma", 1], ["hp_pct", 25]],
+			{"key": "A", "label": "Join in and help serve", "effects": [["fatigue", 1], ["karma", 1], ["renown", 1], ["hp_pct", 25]],
 				"roll": {"chance": 30, "effects": [["reward", 1]]}},
 			{"key": "B", "label": "Walk past"},
-			{"key": "C", "label": "Steal food to resell", "effects": [["karma", -1], ["gold_pct", 10, 1]],
+			{"key": "C", "label": "Steal food to resell", "effects": [["karma", -1], ["gold_pct", 7, 1]],
 				"roll": {"chance": 30, "effects": [["back", 2]]}},
 			{"key": "D", "need": "concord", "label": "Bless the harvest for the Concord",
 				"effects": [["karma", 2], ["hp_pct", 25], ["item", "Medkit"], ["coupon", "concord"]]},
@@ -203,7 +206,7 @@ const EVENTS := {
 				"check": {"base": 50, "stat": "lck", "pass": [], "fail": [["lose_gold_pct", 10, 1], ["skip", 1]]}},
 			{"key": "C", "label": "Fight your way through",
 				"effects": [["fight", {"power": 1.4, "win": [["karma", 1], ["reward", 1]], "lose": [["steal"]]}]]}, # โจรติดอาวุธ แข็งกว่ามอนสเตอร์ป่า
-			{"key": "D", "need": "syndicate", "label": "Flash your Syndicate code", "effects": [["karma", -1], ["gold_pct", 10, 1]]},
+			{"key": "D", "need": "syndicate", "label": "Flash your Syndicate code", "effects": [["karma", -1], ["gold_pct", 7, 1]]},
 		],
 	},
 	"pit_duelist": {
@@ -213,7 +216,7 @@ const EVENTS := {
 			{"key": "A", "label": "Accept the duel",
 				"effects": [["fight", {"friendly": true, "win": [["gold_pct", 10, 1]], "lose": [["lose_gold_pct", 10, 1]]}]]},
 			{"key": "B", "label": "Decline"},
-			{"key": "C", "label": "Spike their drink first", "effects": [["karma", -2], ["gold_pct", 10, 1], ["reward", 1]],
+			{"key": "C", "label": "Spike their drink first", "effects": [["karma", -2], ["gold_pct", 7, 1], ["reward", 1]],
 				"roll": {"chance": 20, "effects": [["skip", 1], ["steal"]]}},
 			{"key": "D", "need": "concord", "label": "Invite them to the Concord", "effects": [["karma", 2], ["item", "Beacon Relic"]]},
 		],
@@ -261,10 +264,10 @@ const EVENTS := {
 		"title": "Syndicate Loan Broker",
 		"text": "A figure in a black coat holds out a credit stick. \"Borrow now. Pay later. We're very patient.\"",
 		"options": [
-			{"key": "A", "label": "Refuse and warn the locals", "effects": [["fatigue", 1], ["karma", 1]]},
+			{"key": "A", "label": "Refuse and warn the locals", "effects": [["fatigue", 1], ["karma", 1], ["renown", 1]]},
 			{"key": "B", "label": "Walk past"},
 			{"key": "C", "label": "Take the loan", "effects": [["loan", 30, 3]]},
-			{"key": "D", "need": "syndicate", "label": "Work as a debt collector", "effects": [["karma", -2], ["gold_pct", 25, 2]],
+			{"key": "D", "need": "syndicate", "label": "Work as a debt collector", "effects": [["karma", -2], ["gold_pct", 15, 2]],
 				"check": {"base": 50, "stat": "atk", "pass": [], "fail": [["hp_pct", -10], ["back", 2]]}},
 		],
 	},
@@ -288,9 +291,9 @@ const EVENTS := {
 			{"key": "A", "label": "Hide them and hear the story", "effects": [["fatigue", 1]],
 				"check": {"base": 50, "stat": "lck", "pass": [["karma", 2], ["reward", 1]], "fail": [["steal"]]}},
 			{"key": "B", "label": "Walk past"},
-			{"key": "C", "label": "Hand them over to security", "effects": [["karma", -1], ["gold_pct", 15, 2]]},
+			{"key": "C", "label": "Hand them over to security", "effects": [["karma", -1], ["gold_pct", 10, 2]]},
 			{"key": "D", "need": "syndicate", "label": "Smuggle them into the Syndicate network",
-				"effects": [["karma", -2], ["gold_pct", 20, 3], ["open_shop", "syndicate"]]},
+				"effects": [["karma", -2], ["gold_pct", 15, 3], ["open_shop", "syndicate"]]},
 		],
 	},
 	"ion_storm": {
@@ -300,7 +303,8 @@ const EVENTS := {
 		"options": [
 			{"key": "A", "label": "Help a stranded elder first", "effects": [["fatigue", 1], ["karma", 1], ["hp_pct", -10], ["reward", 1]]},
 			{"key": "B", "label": "Find your own cover", "effects": [["skip", 1]]},
-			{"key": "C", "label": "Take someone else's shelter", "effects": [["karma", -1]]},
+			{"key": "C", "label": "Take someone else's shelter", "effects": [["karma", -1]],
+				"roll": {"chance": 30, "effects": [["hp_pct", -10]]}},
 			{"key": "D", "need": "freeport", "label": "Deploy a Guild storm dome", "cost": [["scrip", 2]],
 				"effects": [["renown", 2], ["hp_pct", 10]]},
 		],

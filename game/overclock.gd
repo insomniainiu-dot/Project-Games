@@ -7,9 +7,9 @@ class_name Overclock
 
 const MAX_PLUS := 5
 const CHANCE := [85, 70, 55, 40, 25] ## โอกาสสำเร็จ (%) เมื่อตีไป +1 .. +5
-const COST_PCT := [20, 30, 40, 50, 60] ## ค่าตี (% ของราคาไอเทมตาม tier)
+const COST_PCT := [15, 20, 30, 40, 50] ## ค่าตี (% ของราคาไอเทมตาม tier) — sim: เดิม 20–60% แพงเกินผลที่ได้
 const MIN_COST := 10
-const STAT_PCT := 10 ## ค่าพลังบวกทุกตัว +10% ต่อระดับ (ปัดขึ้น อย่างน้อย +1 ต่อระดับ) — ใช้ใน ItemDB.data
+const STAT_PCT := 15 ## ค่าพลังบวกทุกตัว +15% ต่อระดับ (ปัดขึ้น อย่างน้อย +1 ต่อระดับ) — ใช้ใน ItemDB.data
 const PRICE_PCT_PER_PLUS := 10 ## ราคาขาย +10% ต่อระดับ
 const VENUE_BONUS := 15 ## ร้านฝ่ายเดียวกัน + / ฝ่ายตรงข้าม −
 const CHANCE_MIN := 5

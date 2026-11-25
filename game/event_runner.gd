@@ -196,6 +196,9 @@ static func _apply(player: PlayerStats, e: Array, rng: RandomNumberGenerator, ou
 		"renown":
 			player.renown += int(e[1])
 			out.lines.append("Renown %+d (now %d)" % [e[1], player.renown])
+			if int(e[1]) > 0 and EventData.SCRIP_PER_RENOWN > 0: # กิลด์จ่ายค่างานเป็น Scrip
+				player.scrip += int(e[1]) * EventData.SCRIP_PER_RENOWN
+				out.lines.append("Scrip +%d (Guild pay)" % (int(e[1]) * EventData.SCRIP_PER_RENOWN))
 		"scrip":
 			player.scrip += int(e[1])
 			out.lines.append("Scrip %+d" % e[1])
@@ -276,6 +279,8 @@ static func _reward(player: PlayerStats, shift: int, rng: RandomNumberGenerator,
 	match CCBattle._pick(EventData.REWARD_WEIGHTS, rng):
 		"credits":
 			_apply(player, ["gold_pct", 10, 1], rng, out)
+		"scrip":
+			_apply(player, ["scrip", rng.randi_range(1, 2)], rng, out)
 		"consumable":
 			var stock: Array = GameData.ITEM_SHOP_STOCK
 			_apply(player, ["item", stock[rng.randi_range(0, stock.size() - 1)]], rng, out)
