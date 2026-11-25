@@ -55,8 +55,20 @@ func _process(delta: float) -> void:
 		var n: int = mon.frames
 		_mon_sprite.frame = n + int(_time * 6.0) % n # แถว 1 = หันซ้าย
 	if _player_sprite:
-		_player_sprite.frame = 21 if fmod(_time, 3.3) < 0.12 else 20 # ยืนหันขวา + กระพริบตา
-		_player_sprite.position.y = _player_home.y + sin(_time * 2.5) * 2.0
+		_player_sprite.frame = _player_idle_frame()
+
+
+## scout หันขวา (แถว 2 ของ scout_sheet): หายใจคอลัมน์ 0-3, กระพริบตาคอลัมน์ 4-5 ทุก 2 รอบหายใจ
+func _player_idle_frame() -> int:
+	const ROW := 2 * 10
+	var cycle := fmod(_time, 2.8)
+	var col := 0
+	if cycle >= 2.5: col = 3
+	elif cycle >= 1.5: col = 2
+	elif cycle >= 1.2: col = 1
+	elif int(_time / 2.8) % 2 == 1 and cycle >= 0.6 and cycle < 0.84:
+		col = 5 if cycle >= 0.66 and cycle < 0.78 else 4
+	return ROW + col
 
 
 # ================================================================ ลำดับการต่อสู้
@@ -337,7 +349,7 @@ func _build() -> void:
 		shadow.color = Color(0, 0, 0, 0.35)
 		add_child(shadow)
 
-	_player_sprite = _make_sprite("res://witch_sheet.png", 4, 6, 2.2)
+	_player_sprite = _make_sprite("res://characters/scout_pixel/scout_sheet.png", 10, 4, 3.3)
 	_player_sprite.position = _player_home
 	add_child(_player_sprite)
 	_mon_sprite = _make_sprite(mon.sprite, mon.frames, 2, 2.2 * mon.scale)

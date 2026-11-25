@@ -1,29 +1,30 @@
 class_name Witch
 extends Node3D
-## ตัวละครแม่มดแบบ HD-2D: สไปรต์พิกเซล 2D (Sprite3D) ที่ยืนอยู่ในโลก 3D
-## ใช้สไปรต์ชีต witch_sheet.png = 4 คอลัมน์ x 6 แถว
-##   แถว 0-3 : เดิน ลง / ซ้าย / ขวา / ขึ้น (4 เฟรม)
-##   แถว 4   : ยืนลง, กระพริบตาลง, ยืนซ้าย, กระพริบตาซ้าย
-##   แถว 5   : ยืนขวา, กระพริบตาขวา, ยืนขึ้น, ยืนขึ้น(ท่าสลับ)
+## ตัวละครผู้เล่นแบบ HD-2D: สไปรต์พิกเซล 2D (Sprite3D) ที่ยืนอยู่ในโลก 3D
+## (ชื่อคลาสยังเป็น Witch เพื่อไม่ต้องแก้โค้ดที่เรียกใช้ — ภาพเป็นตัว scout แล้ว)
+## ใช้สไปรต์ชีต characters/scout_pixel/scout_sheet.png = 10 คอลัมน์ x 4 แถว (เฟรม 41x60)
+##   แถว 0-3 : หันลง / ซ้าย / ขวา / ขึ้น
+##   คอลัมน์ 0-3 : หายใจ (พัก, อกยก, หัวยกตาม, อกลง-หัวตามช้า)
+##   คอลัมน์ 4-5 : ตาปิดครึ่ง, ตาปิดสนิท (วาดบนท่าพัก คอลัมน์ 0)
+##   คอลัมน์ 6-9 : เดิน 4 เฟรม
 
 enum Dir { DOWN, LEFT, RIGHT, UP }
 
-const HEIGHT := 1.25 # ความสูงตัวละครในหน่วยโลก 3D (1 ช่อง = 1.0)
+const SHEET := "res://characters/scout_pixel/scout_sheet.png"
+const COLS := 10
+const ROWS := 4
+const HEIGHT := 1.25 # ความสูงเฟรมในหน่วยโลก 3D (1 ช่อง = 1.0)
+const FEET_PAD := 2  # พิกเซลว่างใต้เท้าในเฟรม
 const WALK_FPS := 8.0
-
-# เฟรมยืนนิ่ง [ปกติ, กระพริบตา] ของแต่ละทิศ (เลขเฟรม = แถว*4 + คอลัมน์)
-const IDLE_FRAMES := {
-	Dir.DOWN: [16, 17],
-	Dir.LEFT: [18, 19],
-	Dir.RIGHT: [20, 21],
-	Dir.UP: [22, 22], # หันหลังมองไม่เห็นตา
-}
+const WALK_COL := 6
+const BLINK_HALF_COL := 4
+const BLINK_SHUT_COL := 5
 
 # ---- ปรับความมีชีวิตชีวาตรงนี้ ----
-const BREATH_SPEED := 2.4     # วินาทีต่อการหายใจ 1 รอบ
-const BREATH_AMOUNT := 0.025  # ตัวยืดขึ้นลงกี่ส่วน ตอนหายใจ
-const SWAY_AMOUNT := 0.03     # โยกตัวซ้ายขวาเบา ๆ (หน่วยโลก)
-const BLINK_TIME := 0.12      # ระยะเวลาหลับตา (วินาที)
+# ระยะเวลาของเฟรมหายใจ คอลัมน์ 0..3 (วินาที) รวม ~2.8 วิ/รอบ
+const BREATH_TIMES := [1.2, 0.3, 1.0, 0.3]
+const BLINK_HALF := 0.06      # ตาปิดครึ่ง (ขาลง/ขาขึ้น)
+const BLINK_SHUT := 0.12      # ตาปิดสนิท
 const BLINK_MIN := 2.0        # กระพริบตาทุก ๆ 2-5 วินาที
 const BLINK_MAX := 5.0
 
@@ -31,79 +32,86 @@ var facing: Dir = Dir.DOWN
 var walking := false
 var sprite: Sprite3D
 var _anim_time := 0.0
-var _idle_time := 0.0
+var _breath_col := 0
+var _breath_left := 0.0
 var _base_y := 0.0
 var _blink_wait := 0.0
-var _blink_left := 0.0
+var _blink_t := -1.0 # < 0 = ไม่ได้กระพริบอยู่
 var _double_blink := false
 
 
 func _init() -> void:
 	sprite = Sprite3D.new()
-	sprite.texture = load("res://witch_sheet.png")
-	sprite.hframes = 4
-	sprite.vframes = 6
-	var frame_height := sprite.texture.get_height() / 6.0
+	sprite.texture = load(SHEET)
+	sprite.hframes = COLS
+	sprite.vframes = ROWS
+	var frame_height := sprite.texture.get_height() / float(ROWS)
 	sprite.pixel_size = HEIGHT / frame_height
 	sprite.billboard = BaseMaterial3D.BILLBOARD_FIXED_Y # หันเข้ากล้องเสมอ แต่ยืนตรง
 	sprite.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST # พิกเซลคม
 	sprite.alpha_cut = SpriteBase3D.ALPHA_CUT_DISCARD # ทำให้เงาเป็นรูปตัวละคร
 	sprite.shaded = true # รับแสงจากตะเกียง/แสงแดด
 	sprite.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
-	_base_y = HEIGHT / 2.0 # ยกขึ้นให้เท้าแตะพื้นที่จุด position
+	# ยกขึ้นให้เท้าแตะพื้นที่จุด position
+	_base_y = HEIGHT / 2.0 - FEET_PAD * sprite.pixel_size
 	sprite.position.y = _base_y
 	add_child(sprite)
 	_blink_wait = randf_range(BLINK_MIN, BLINK_MAX)
+	# สุ่มจังหวะหายใจเริ่มต้น ตัวละครหลายตัวจะได้ไม่หายใจพร้อมกัน
+	_breath_col = randi() % BREATH_TIMES.size()
+	_breath_left = randf() * float(BREATH_TIMES[_breath_col])
 	_update_frame()
 
 
 func _process(delta: float) -> void:
 	if walking:
 		_anim_time += delta
-		_idle_time = 0.0
 	else:
 		_anim_time = 0.0
-		_idle_time += delta
+		_update_breathing(delta)
 		_update_blink(delta)
-		_update_breathing()
 	_update_frame()
 
 
 func _update_frame() -> void:
+	var row := int(facing) * COLS
 	if walking:
-		var col := int(_anim_time * WALK_FPS) % 4
-		sprite.frame = int(facing) * 4 + col
-	else:
-		var idle: Array = IDLE_FRAMES[facing]
-		sprite.frame = idle[1] if _blink_left > 0.0 else idle[0]
+		sprite.frame = row + WALK_COL + int(_anim_time * WALK_FPS) % 4
+		return
+	var col := _breath_col
+	if _blink_t >= 0.0 and facing != Dir.UP:
+		col = BLINK_SHUT_COL if _blink_t >= BLINK_HALF and _blink_t < BLINK_HALF + BLINK_SHUT else BLINK_HALF_COL
+	sprite.frame = row + col
+
+
+## หายใจด้วยเฟรมพิกเซล (อก/หัวขยับทีละ 1 px) — ไม่ยืดสไปรต์ พิกเซลเลยคม
+func _update_breathing(delta: float) -> void:
+	if _blink_t >= 0.0:
+		return # ค้างท่าพักไว้ระหว่างกระพริบตา
+	_breath_left -= delta
+	if _breath_left <= 0.0:
+		_breath_col = (_breath_col + 1) % BREATH_TIMES.size()
+		_breath_left += float(BREATH_TIMES[_breath_col])
 
 
 ## กระพริบตาแบบสุ่ม บางครั้งกระพริบ 2 ครั้งติดกัน
+## เฟรมกระพริบวาดบนท่าพัก จึงเริ่มกระพริบเฉพาะตอนหายใจอยู่ท่าพัก (คอลัมน์ 0)
 func _update_blink(delta: float) -> void:
-	if _blink_left > 0.0:
-		_blink_left -= delta
-		if _blink_left <= 0.0:
+	if _blink_t >= 0.0:
+		_blink_t += delta
+		if _blink_t >= BLINK_HALF * 2.0 + BLINK_SHUT:
+			_blink_t = -1.0
 			if _double_blink:
 				_double_blink = false
-				_blink_wait = 0.15
+				_blink_wait = 0.12
 			else:
 				_blink_wait = randf_range(BLINK_MIN, BLINK_MAX)
 		return
 	_blink_wait -= delta
-	if _blink_wait <= 0.0:
-		_blink_left = BLINK_TIME
-		_double_blink = randf() < 0.25
-
-
-## หายใจ: ตัวยืด/หดเล็กน้อย เท้ายังติดพื้น + โยกตัวเบา ๆ
-func _update_breathing() -> void:
-	var t := _idle_time * TAU / BREATH_SPEED
-	var breath := (sin(t) + 1.0) * 0.5 # 0..1
-	var sy := 1.0 + breath * BREATH_AMOUNT
-	var sx := 1.0 - breath * BREATH_AMOUNT * 0.4
-	sprite.scale = Vector3(sx, sy, 1.0)
-	sprite.position.y = _base_y * sy # ชดเชยให้เท้าไม่ลอย
-	sprite.position.x = sin(t * 0.5) * SWAY_AMOUNT
+	if _blink_wait <= 0.0 and _breath_col == 0:
+		_blink_t = 0.0
+		if _double_blink == false:
+			_double_blink = randf() < 0.25
 
 
 func face_toward(direction: Vector3) -> void:
@@ -116,7 +124,7 @@ func face_toward(direction: Vector3) -> void:
 ## เริ่ม/จบการเดิน (ใช้ร่วมกับ step_to)
 func begin_walk() -> void:
 	walking = true
-	sprite.scale = Vector3.ONE
+	_blink_t = -1.0
 	sprite.position = Vector3(0, _base_y, 0)
 
 
@@ -124,6 +132,8 @@ func end_walk(face_camera := true) -> void:
 	walking = false
 	if face_camera:
 		facing = Dir.DOWN # หยุดแล้วหันหน้าเข้ากล้อง
+	_breath_col = 0
+	_breath_left = float(BREATH_TIMES[0])
 	_blink_wait = randf_range(0.6, 1.5) # หยุดแล้วเดี๋ยวกระพริบตา
 
 

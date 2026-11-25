@@ -35,6 +35,6 @@ static func config(p: PlayerStats, monster_id: String, seed: int) -> Dictionary:
 static func portraits(monster_id: String) -> Array:
 	var m: Dictionary = GameData.MONSTERS[monster_id]
 	return [
-		{"texture": load("res://witch_sheet.png"), "hframes": 4, "vframes": 6, "frame": 16},
+		{"texture": load("res://characters/scout_pixel/scout_sheet.png"), "hframes": 10, "vframes": 4, "frame": 0},
 		{"texture": load(m.sprite), "hframes": m.frames, "vframes": 2, "frame": 0, "tint": m.tint},
 	]
